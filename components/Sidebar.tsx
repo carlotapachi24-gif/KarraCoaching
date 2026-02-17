@@ -55,7 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, setRole }) => {
            <img 
              src={logoSrc} 
              alt="López Coaching" 
-             className="h-8 w-auto object-contain"
+             className="h-24 w-auto object-contain"
              onError={(e) => {
                // Fallback if image fails
                e.currentTarget.style.display = 'none';
@@ -91,7 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, setRole }) => {
            <img 
              src={logoSrc} 
              alt="López Coaching" 
-             className="h-14 w-auto object-contain"
+             className="h-[168px] w-auto object-contain"
              onError={(e) => {
                e.currentTarget.style.display = 'none';
                e.currentTarget.nextElementSibling?.classList.remove('hidden');
