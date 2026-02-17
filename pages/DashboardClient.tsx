@@ -1,0 +1,302 @@
+import React, { useState } from 'react';
+import { 
+  TrendingDown, 
+  CheckCircle, 
+  Circle, 
+  Play, 
+  ChevronRight, 
+  Activity,
+  Dumbbell,
+  ArrowLeft,
+  LayoutDashboard,
+  LineChart
+} from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Profile } from './Profile';
+
+export const DashboardClient: React.FC = () => {
+  const navigate = useNavigate();
+  const { clientId } = useParams();
+  const isCoachView = !!clientId;
+  const [activeTab, setActiveTab] = useState<'overview' | 'progress'>('overview');
+
+  const getClientName = () => {
+    if (!clientId) return "Alex";
+    switch(clientId) {
+      case '1': return "Alex";
+      case '2': return "María";
+      case '3': return "Juan";
+      default: return "Cliente";
+    }
+  };
+
+  const clientName = getClientName();
+  
+  const [tasks, setTasks] = useState([
+    { id: 1, title: "Registrar Entrenamiento", subtitle: "Prioridad Alta", status: "pending", isPriority: true },
+    { id: 2, title: "Objetivo de Proteína", subtitle: "120g / 180g consumidos", status: "pending", isPriority: false },
+    { id: 3, title: "Subir Check-in Semanal", subtitle: "Foto de progreso requerida", status: "pending", isPriority: true },
+    { id: 4, title: "Beber 3L de Agua", subtitle: "Completado", status: "completed", isPriority: false },
+  ]);
+
+  const toggleTask = (id: number) => {
+    setTasks(tasks.map(t => 
+      t.id === id ? { ...t, status: t.status === 'completed' ? 'pending' : 'completed' } : t
+    ));
+  };
+
+  const completedTasks = tasks.filter(t => t.status === 'completed').length;
+  const totalTasks = tasks.length;
+  const compliancePercentage = Math.round((completedTasks / totalTasks) * 100);
+
+  const weightData = [
+    { name: 'Completed', value: compliancePercentage },
+    { name: 'Remaining', value: 100 - compliancePercentage },
+  ];
+  const COLORS = ['#16A34A', '#E2E8F0'];
+
+  return (
+    <div className="space-y-8 animate-fade-in pb-10">
+      {isCoachView && (
+        <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+             <div className="bg-primary text-white p-2 rounded-lg"><Activity size={20} /></div>
+             <div>
+               <p className="font-black italic uppercase text-primary text-sm">Vista de Coach</p>
+               <p className="text-xs text-slate-500 font-medium">Viendo el panel de {clientName}.</p>
+             </div>
+          </div>
+          <button 
+            onClick={() => navigate('/')} 
+            className="text-sm font-bold text-slate-500 hover:text-primary flex items-center gap-1 uppercase"
+          >
+            <ArrowLeft size={16} /> Volver
+          </button>
+        </div>
+      )}
+
+      <header>
+        <h1 className="font-display text-4xl md:text-6xl font-black text-text uppercase tracking-tighter italic leading-[0.9]">
+          {isCoachView ? `PANEL DE ${clientName}` : `¡HOLA, ${clientName}!`} <span className="text-primary block md:inline">{isCoachView ? '' : 'A POR LA SEMANA.'}</span>
+        </h1>
+        <p className="text-slate-500 mt-2 font-bold uppercase tracking-wide text-sm">Lunes, 23 Oct • Día 14 de tu programa</p>
+      </header>
+
+      {/* Tabs for Coach View (or Client View if desired) */}
+      <div className="flex border-b border-slate-200 gap-6">
+        <button 
+          onClick={() => setActiveTab('overview')}
+          className={`pb-4 text-sm font-black uppercase tracking-wide flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'overview' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-text'}`}
+        >
+          <LayoutDashboard size={18} /> Resumen Diario
+        </button>
+        <button 
+          onClick={() => setActiveTab('progress')}
+          className={`pb-4 text-sm font-black uppercase tracking-wide flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'progress' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-text'}`}
+        >
+          <LineChart size={18} /> Progreso y Métricas
+        </button>
+      </div>
+
+      {activeTab === 'overview' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+          {/* Left Column (Stats & Workout) */}
+          <div className="lg:col-span-2 space-y-6">
+            
+            {/* Progress Summary Card */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="font-display font-black italic uppercase text-xl tracking-tighter">Progreso Semanal</h2>
+                <div className="flex gap-2">
+                  <span className="bg-primary/10 text-primary text-xs font-black px-3 py-1 rounded-full uppercase tracking-wide">Semana 2</span>
+                  <span className="bg-secondary/10 text-secondary text-xs font-black px-3 py-1 rounded-full uppercase tracking-wide">En racha</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 items-center">
+                {/* Adherence Ring */}
+                <div className="flex flex-col items-center relative">
+                  <div className="w-40 h-40 relative">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart margin={{ top: 0, left: 0, right: 0, bottom: 0 }}>
+                        <Pie
+                          data={weightData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={55}
+                          outerRadius={70}
+                          startAngle={90}
+                          endAngle={-270}
+                          dataKey="value"
+                          cornerRadius={10}
+                          stroke="none"
+                          paddingAngle={5}
+                        >
+                          {weightData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="font-display text-4xl font-black text-text italic tracking-tighter">{compliancePercentage}%</span>
+                      <span className="text-xs text-slate-400 font-black uppercase tracking-widest">Hábitos</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-500 mt-2 text-center font-bold uppercase">
+                    <strong className="text-text">{completedTasks}/{totalTasks}</strong> completados
+                  </p>
+                </div>
+
+                {/* Weight Stat */}
+                <div className="flex flex-col justify-center space-y-4">
+                   <div>
+                      <p className="text-xs text-slate-400 font-black uppercase tracking-wider mb-1">Peso Actual</p>
+                      <div className="flex items-end gap-2">
+                        <span className="font-display text-6xl font-black text-text italic tracking-tighter leading-none">83.5</span>
+                        <span className="text-xl font-black text-slate-300 mb-2 italic uppercase">kg</span>
+                      </div>
+                   </div>
+                   <div className="flex items-center gap-2 text-secondary bg-secondary/5 p-3 rounded-xl w-fit border border-secondary/10">
+                      <TrendingDown size={20} />
+                      <span className="font-black italic uppercase text-sm tracking-tight">-0.6 kg vs semana pasada</span>
+                   </div>
+                   <button 
+                    onClick={() => setActiveTab('progress')}
+                    className="text-xs font-black text-primary hover:underline uppercase tracking-wide text-left"
+                   >
+                     Ver Historial Completo
+                   </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Next Workout Card */}
+            <div 
+              onClick={() => navigate('/plan')}
+              className="relative overflow-hidden bg-primary rounded-2xl p-6 md:p-8 text-white shadow-xl shadow-primary/20 group cursor-pointer transition-transform hover:scale-[1.01]"
+            >
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-white/20 transition-all duration-500"></div>
+              
+              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div>
+                  <span className="inline-block bg-white/20 backdrop-blur-sm text-white text-[10px] font-black px-3 py-1 rounded-md uppercase tracking-widest mb-3 skew-x-[-10deg]">
+                    Sesión de Hoy
+                  </span>
+                  <h3 className="font-display text-3xl md:text-5xl font-black mb-2 italic uppercase tracking-tighter">Tren Inferior: Fuerza</h3>
+                  <div className="flex items-center gap-4 text-red-100 text-sm font-bold uppercase tracking-wide">
+                    <span className="flex items-center gap-1"><Activity size={16} /> 60 mins</span>
+                    <span className="flex items-center gap-1"><Dumbbell size={16} /> 5 ejercicios</span>
+                  </div>
+                </div>
+                
+                <button className="bg-white text-primary px-8 py-4 rounded-xl font-black text-sm hover:bg-red-50 transition-colors flex items-center justify-center gap-2 shadow-lg uppercase tracking-wide italic transform skew-x-[-5deg]">
+                  <Play size={18} fill="currentColor" />
+                  <span className="skew-x-[5deg]">Empezar</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column (Tasks) */}
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 h-full">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="font-display font-black italic uppercase text-xl tracking-tighter">Tareas de Hoy</h2>
+                <span className="text-xs font-black text-slate-400 bg-slate-100 px-2 py-1 rounded uppercase">{tasks.filter(t => t.status === 'pending').length} Pendientes</span>
+              </div>
+
+              <div className="space-y-3">
+                {tasks.map(task => (
+                  <TaskItem 
+                    key={task.id}
+                    title={task.title} 
+                    subtitle={task.subtitle} 
+                    status={task.status as 'pending' | 'completed'} 
+                    isPriority={task.isPriority}
+                    onClick={() => toggleTask(task.id)}
+                  />
+                ))}
+              </div>
+
+              {/* Coach Message Mini Card */}
+              {!isCoachView && (
+                <div className="mt-8 pt-6 border-t border-slate-100">
+                   <div className="flex items-center gap-3 mb-3">
+                     <div className="relative">
+                       <img src="https://picsum.photos/seed/coach/100" alt="Coach" className="w-10 h-10 rounded-full object-cover ring-2 ring-primary/20" />
+                       <div className="absolute bottom-0 right-0 w-3 h-3 bg-secondary border-2 border-white rounded-full"></div>
+                     </div>
+                     <div>
+                       <p className="text-sm font-black italic uppercase text-text">Coach Yago</p>
+                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">En línea</p>
+                     </div>
+                   </div>
+                   <div className="bg-slate-50 p-4 rounded-xl text-sm text-slate-600 italic font-medium border-l-4 border-primary">
+                     "¡Gran trabajo con el peso muerto ayer, {clientName}! La técnica se ve muy sólida. Hoy enfócate en el tempo."
+                   </div>
+                   <button 
+                    onClick={() => navigate('/messages')}
+                    className="w-full mt-3 py-3 rounded-xl border-2 border-primary/10 text-primary text-xs font-black hover:bg-primary hover:text-white transition-colors uppercase tracking-widest italic">
+                     Responder Mensaje
+                   </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Progress Tab: Embeds Profile Component */
+        <Profile isEmbedded={true} clientName={clientName} />
+      )}
+    </div>
+  );
+};
+
+interface TaskItemProps {
+  title: string;
+  subtitle: string;
+  status: 'pending' | 'completed';
+  isPriority?: boolean;
+  onClick: () => void;
+}
+
+const TaskItem: React.FC<TaskItemProps> = ({ title, subtitle, status, isPriority = false, onClick }) => {
+  const isCompleted = status === 'completed';
+  
+  return (
+    <div 
+      onClick={onClick}
+      className={`flex items-center gap-3 p-4 rounded-xl border-l-4 transition-all cursor-pointer group select-none
+      ${isCompleted 
+        ? 'bg-slate-50 border-l-slate-200 border-y-slate-100 border-r-slate-100 opacity-60' 
+        : isPriority 
+          ? 'bg-white border-l-primary border-y-slate-100 border-r-slate-100 shadow-sm hover:shadow-md' 
+          : 'bg-white border-l-slate-300 border-y-slate-100 border-r-slate-100 hover:border-l-primary'
+      }`}
+    >
+      <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0
+        ${isCompleted 
+          ? 'bg-secondary text-white' 
+          : isPriority 
+            ? 'border-2 border-primary text-primary' 
+            : 'border-2 border-slate-300 text-slate-300 group-hover:border-primary group-hover:text-primary'
+        }`}
+      >
+        {isCompleted ? <CheckCircle size={14} /> : <Circle size={14} />}
+      </div>
+      
+      <div className="flex-1 min-w-0">
+        <p className={`text-sm font-black italic uppercase truncate tracking-tight ${isCompleted ? 'text-slate-500 line-through' : 'text-text'}`}>
+          {title}
+        </p>
+        <p className={`text-xs font-bold uppercase tracking-wide truncate ${isPriority ? 'text-primary' : isCompleted ? 'text-secondary' : 'text-slate-400'}`}>
+          {subtitle}
+        </p>
+      </div>
+      
+      {!isCompleted && <ChevronRight size={16} className="text-slate-300 group-hover:text-primary transition-colors" />}
+    </div>
+  );
+};
