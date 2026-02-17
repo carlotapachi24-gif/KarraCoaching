@@ -24,6 +24,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ role, setRole }) => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
+  const logoSrc = '/ChatGPT%20Image%2017%20feb%202026,%2015_33_32.png';
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -51,7 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, setRole }) => {
         <div className="flex items-center gap-2">
            {/* Mobile Logo Image */}
            <img 
-             src="https://i.ibb.co/vz4g1bM/lopez-logo.png" 
+             src={logoSrc} 
              alt="López Coaching" 
              className="h-8 w-auto object-contain"
              onError={(e) => {
@@ -87,7 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, setRole }) => {
         <div className="p-8 hidden md:flex items-center justify-center">
            {/* Desktop Logo Image */}
            <img 
-             src="https://i.ibb.co/vz4g1bM/lopez-logo.png" 
+             src={logoSrc} 
              alt="López Coaching" 
              className="h-14 w-auto object-contain"
              onError={(e) => {
