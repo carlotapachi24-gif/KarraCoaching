@@ -25,6 +25,7 @@ interface DashboardClientProps {
   currentClientHeightCm?: number;
   currentClientStartWeightKg?: number;
   currentClientCurrentWeightKg?: number;
+  currentClientInjuries?: string[];
 }
 
 export const DashboardClient: React.FC<DashboardClientProps> = ({
@@ -37,6 +38,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
   currentClientHeightCm,
   currentClientStartWeightKg,
   currentClientCurrentWeightKg,
+  currentClientInjuries,
 }) => {
   const navigate = useNavigate();
   const { clientId } = useParams();
@@ -280,6 +282,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
           heightCm={currentClientHeightCm}
           startWeightKg={currentClientStartWeightKg}
           currentWeightKg={currentClientCurrentWeightKg}
+          injuries={currentClientInjuries}
         />
       )}
     </div>

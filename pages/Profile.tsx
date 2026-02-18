@@ -14,6 +14,7 @@ interface ProfileProps {
   heightCm?: number;
   startWeightKg?: number;
   currentWeightKg?: number;
+  injuries?: string[];
 }
 
 export const Profile: React.FC<ProfileProps> = ({
@@ -26,6 +27,7 @@ export const Profile: React.FC<ProfileProps> = ({
   heightCm,
   startWeightKg,
   currentWeightKg,
+  injuries,
 }) => {
   const [selectedPrExercise, setSelectedPrExercise] = useState<'squat' | 'bench' | 'deadlift'>('squat');
   
@@ -99,10 +101,13 @@ export const Profile: React.FC<ProfileProps> = ({
     level: 'Intermedio',
     // New Fields
     objective: objectiveText || 'Mejorar la composición corporal reduciendo grasa y aumentar el rendimiento en carrera (10k) sin perder fuerza máxima.',
-    injuries: [
-      'Tendinopatía rotuliana leve (Rodilla derecha) - En rehabilitación.',
-      'Molestia hombro izquierdo en press vertical pesado.'
-    ]
+    injuries:
+      injuries && injuries.length > 0
+        ? injuries
+        : [
+            'Tendinopatía rotuliana leve (Rodilla derecha) - En rehabilitación.',
+            'Molestia hombro izquierdo en press vertical pesado.',
+          ],
   };
 
   // Progress Helper Functions

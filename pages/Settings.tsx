@@ -32,6 +32,10 @@ export const Settings: React.FC<SettingsProps> = ({
     startWeightKg: 90.2,
     currentWeightKg: 83.5,
     bio: 'Quiero mejorar mi fuerza en basicos y bajar un 5% de grasa corporal para el verano.',
+    injuries: [
+      'Tendinopatia rotuliana leve (Rodilla derecha) - En rehabilitacion.',
+      'Molestia hombro izquierdo en press vertical pesado.',
+    ],
     avatarUrl: `https://picsum.photos/seed/${encodeURIComponent(userEmail)}/150`,
   };
 
@@ -91,10 +95,12 @@ const ProfileSection = ({
 }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [profileForm, setProfileForm] = useState<ClientProfileData>(initialProfile);
+  const [injuriesText, setInjuriesText] = useState((initialProfile.injuries || []).join('\n'));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setProfileForm(initialProfile);
+    setInjuriesText((initialProfile.injuries || []).join('\n'));
   }, [initialProfile]);
 
   const handleSave = () => {
@@ -213,6 +219,22 @@ const ProfileSection = ({
             <textarea
               value={profileForm.bio}
               onChange={(event) => setProfileForm((prev) => ({ ...prev, bio: event.target.value }))}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm font-bold text-text min-h-[100px]"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Lesiones / Patologias (una por linea)</label>
+            <textarea
+              value={injuriesText}
+              onChange={(event) => {
+                const value = event.target.value;
+                setInjuriesText(value);
+                const parsed = value
+                  .split('\n')
+                  .map((line) => line.trim())
+                  .filter(Boolean);
+                setProfileForm((prev) => ({ ...prev, injuries: parsed }));
+              }}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm font-bold text-text min-h-[100px]"
             />
           </div>

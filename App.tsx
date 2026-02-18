@@ -55,6 +55,10 @@ function App() {
       startWeightKg: 90.2,
       currentWeightKg: 83.5,
       bio: 'Quiero mejorar mi fuerza en basicos y bajar un 5% de grasa corporal para el verano.',
+      injuries: [
+        'Tendinopatia rotuliana leve (Rodilla derecha) - En rehabilitacion.',
+        'Molestia hombro izquierdo en press vertical pesado.',
+      ],
       avatarUrl: `https://picsum.photos/seed/${encodeURIComponent(email)}/150`,
     };
   }, []);
@@ -235,6 +239,7 @@ function App() {
                       currentClientHeightCm={clientProfile?.heightCm}
                       currentClientStartWeightKg={clientProfile?.startWeightKg}
                       currentClientCurrentWeightKg={clientProfile?.currentWeightKg}
+                      currentClientInjuries={clientProfile?.injuries}
                     />
                   ) : (
                     <DashboardCoach />
@@ -259,6 +264,7 @@ function App() {
                       heightCm={clientProfile?.heightCm}
                       startWeightKg={clientProfile?.startWeightKg}
                       currentWeightKg={clientProfile?.currentWeightKg}
+                      injuries={clientProfile?.injuries}
                     />
                   ) : (
                     <Navigate to="/" replace />

@@ -52,5 +52,6 @@ export interface ClientProfileData {
   startWeightKg: number;
   currentWeightKg: number;
   bio: string;
+  injuries: string[];
   avatarUrl: string;
 }
