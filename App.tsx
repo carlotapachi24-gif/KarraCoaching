@@ -30,6 +30,7 @@ interface LoginResponse extends SessionResponse {
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const IS_GITHUB_PAGES = window.location.hostname.endsWith('github.io');
 
 const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
@@ -74,6 +75,10 @@ function App() {
   }, [fetchSession]);
 
   const handleLogin = async (email: string, password: string) => {
+    if (IS_GITHUB_PAGES && !API_BASE) {
+      throw new Error('Falta configurar VITE_API_BASE_URL en GitHub Actions (Variables).');
+    }
+
     try {
       const response = await fetch(apiUrl('/api/login'), {
         method: 'POST',
@@ -93,6 +98,8 @@ function App() {
         } catch {
           if (response.status === 404) {
             message = `Backend no disponible en ${apiUrl('/api/login')}`;
+          } else {
+            message = `Error ${response.status} en ${apiUrl('/api/login')}`;
           }
         }
 
