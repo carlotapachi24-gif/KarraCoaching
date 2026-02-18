@@ -54,22 +54,40 @@ function App() {
   }, [fetchSession]);
 
   const handleLogin = async (email: string, password: string) => {
-    const response = await fetch('/api/login', {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({ message: 'No se pudo iniciar sesion' }));
-      throw new Error(errorBody.message || 'No se pudo iniciar sesion');
+      if (!response.ok) {
+        const rawText = await response.text();
+        let message = 'No se pudo iniciar sesion';
+
+        try {
+          const parsed = JSON.parse(rawText) as { message?: string };
+          message = parsed.message || message;
+        } catch {
+          if (response.status === 404) {
+            message = 'Backend no disponible en /api/login';
+          }
+        }
+
+        throw new Error(message);
+      }
+
+      const sessionData = (await response.json()) as SessionResponse;
+      setUser(sessionData.user);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('No se pudo conectar con el backend');
     }
-
-    const sessionData = (await response.json()) as SessionResponse;
-    setUser(sessionData.user);
   };
 
   const handleLogout = async () => {
