@@ -10,6 +10,10 @@ interface ProfileProps {
   clientEmail?: string;
   avatarUrl?: string;
   objectiveText?: string;
+  birthDate?: string;
+  heightCm?: number;
+  startWeightKg?: number;
+  currentWeightKg?: number;
 }
 
 export const Profile: React.FC<ProfileProps> = ({
@@ -18,6 +22,10 @@ export const Profile: React.FC<ProfileProps> = ({
   clientEmail = 'cliente@example.com',
   avatarUrl,
   objectiveText,
+  birthDate,
+  heightCm,
+  startWeightKg,
+  currentWeightKg,
 }) => {
   const [selectedPrExercise, setSelectedPrExercise] = useState<'squat' | 'bench' | 'deadlift'>('squat');
   
@@ -68,12 +76,25 @@ export const Profile: React.FC<ProfileProps> = ({
     { date: 'Jun', speed: 13.8 },
   ];
 
+  const calculateAge = (dateValue?: string) => {
+    if (!dateValue) return 28;
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return 28;
+    const today = new Date();
+    let age = today.getFullYear() - date.getFullYear();
+    const hasNotHadBirthday =
+      today.getMonth() < date.getMonth() ||
+      (today.getMonth() === date.getMonth() && today.getDate() < date.getDate());
+    if (hasNotHadBirthday) age -= 1;
+    return age > 0 ? age : 28;
+  };
+
   const personalData = {
     name: clientName,
-    age: 28,
-    height: 182,
-    startWeight: 90.2,
-    currentWeight: 83.5,
+    age: calculateAge(birthDate),
+    height: heightCm || 182,
+    startWeight: startWeightKg || 90.2,
+    currentWeight: currentWeightKg || 83.5,
     email: clientEmail,
     level: 'Intermedio',
     // New Fields

@@ -28,6 +28,9 @@ export const Settings: React.FC<SettingsProps> = ({
     email: userEmail,
     phone: '+34 600 000 000',
     birthDate: '1995-05-20',
+    heightCm: 182,
+    startWeightKg: 90.2,
+    currentWeightKg: 83.5,
     bio: 'Quiero mejorar mi fuerza en basicos y bajar un 5% de grasa corporal para el verano.',
     avatarUrl: `https://picsum.photos/seed/${encodeURIComponent(userEmail)}/150`,
   };
@@ -110,6 +113,24 @@ const ProfileSection = ({
     }
   };
 
+  const calculateAge = (birthDate: string) => {
+    const date = new Date(birthDate);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+    const today = new Date();
+    let age = today.getFullYear() - date.getFullYear();
+    const hasNotHadBirthday =
+      today.getMonth() < date.getMonth() ||
+      (today.getMonth() === date.getMonth() && today.getDate() < date.getDate());
+    if (hasNotHadBirthday) {
+      age -= 1;
+    }
+    return age >= 0 ? age : null;
+  };
+
+  const age = calculateAge(profileForm.birthDate);
+
   return (
     <section className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-slate-100 space-y-8">
       <div className="flex items-center justify-between">
@@ -164,6 +185,27 @@ const ProfileSection = ({
               type="date"
               value={profileForm.birthDate}
               onChange={(value) => setProfileForm((prev) => ({ ...prev, birthDate: value }))}
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <InputGroup
+              label="Edad"
+              value={age !== null ? `${age} anos` : '-'}
+              readOnly
+            />
+            <InputGroup
+              label="Altura (cm)"
+              type="number"
+              step="1"
+              value={String(profileForm.heightCm)}
+              onChange={(value) => setProfileForm((prev) => ({ ...prev, heightCm: Number(value) || 0 }))}
+            />
+            <InputGroup
+              label="Peso Inicio (kg)"
+              type="number"
+              step="0.1"
+              value={String(profileForm.startWeightKg)}
+              onChange={(value) => setProfileForm((prev) => ({ ...prev, startWeightKg: Number(value) || 0 }))}
             />
           </div>
           <div>
@@ -245,6 +287,7 @@ const InputGroup = ({
   icon: Icon,
   onChange,
   readOnly = false,
+  step,
 }: {
   label: string;
   type?: string;
@@ -253,6 +296,7 @@ const InputGroup = ({
   icon?: any;
   onChange?: (value: string) => void;
   readOnly?: boolean;
+  step?: string;
 }) => (
   <div>
     <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">{label}</label>
@@ -260,6 +304,7 @@ const InputGroup = ({
       <input
         type={type}
         value={value}
+        step={step}
         readOnly={readOnly}
         onChange={(event) => onChange?.(event.target.value)}
         placeholder={placeholder}

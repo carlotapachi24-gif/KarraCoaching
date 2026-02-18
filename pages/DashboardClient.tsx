@@ -21,6 +21,10 @@ interface DashboardClientProps {
   currentClientEmail?: string;
   currentClientAvatarUrl?: string;
   currentClientBio?: string;
+  currentClientBirthDate?: string;
+  currentClientHeightCm?: number;
+  currentClientStartWeightKg?: number;
+  currentClientCurrentWeightKg?: number;
 }
 
 export const DashboardClient: React.FC<DashboardClientProps> = ({
@@ -29,6 +33,10 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
   currentClientEmail = 'cliente@example.com',
   currentClientAvatarUrl,
   currentClientBio,
+  currentClientBirthDate,
+  currentClientHeightCm,
+  currentClientStartWeightKg,
+  currentClientCurrentWeightKg,
 }) => {
   const navigate = useNavigate();
   const { clientId } = useParams();
@@ -268,6 +276,10 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
           clientEmail={currentClientEmail}
           avatarUrl={currentClientAvatarUrl}
           objectiveText={currentClientBio}
+          birthDate={currentClientBirthDate}
+          heightCm={currentClientHeightCm}
+          startWeightKg={currentClientStartWeightKg}
+          currentWeightKg={currentClientCurrentWeightKg}
         />
       )}
     </div>

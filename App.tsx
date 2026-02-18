@@ -51,6 +51,9 @@ function App() {
       email,
       phone: '+34 600 000 000',
       birthDate: '1995-05-20',
+      heightCm: 182,
+      startWeightKg: 90.2,
+      currentWeightKg: 83.5,
       bio: 'Quiero mejorar mi fuerza en basicos y bajar un 5% de grasa corporal para el verano.',
       avatarUrl: `https://picsum.photos/seed/${encodeURIComponent(email)}/150`,
     };
@@ -228,6 +231,10 @@ function App() {
                       currentClientEmail={user.email}
                       currentClientAvatarUrl={clientProfile?.avatarUrl}
                       currentClientBio={clientProfile?.bio}
+                      currentClientBirthDate={clientProfile?.birthDate}
+                      currentClientHeightCm={clientProfile?.heightCm}
+                      currentClientStartWeightKg={clientProfile?.startWeightKg}
+                      currentClientCurrentWeightKg={clientProfile?.currentWeightKg}
                     />
                   ) : (
                     <DashboardCoach />
@@ -248,6 +255,10 @@ function App() {
                       clientEmail={user.email}
                       avatarUrl={clientProfile?.avatarUrl}
                       objectiveText={clientProfile?.bio}
+                      birthDate={clientProfile?.birthDate}
+                      heightCm={clientProfile?.heightCm}
+                      startWeightKg={clientProfile?.startWeightKg}
+                      currentWeightKg={clientProfile?.currentWeightKg}
                     />
                   ) : (
                     <Navigate to="/" replace />

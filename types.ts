@@ -48,6 +48,9 @@ export interface ClientProfileData {
   email: string;
   phone: string;
   birthDate: string;
+  heightCm: number;
+  startWeightKg: number;
+  currentWeightKg: number;
   bio: string;
   avatarUrl: string;
 }
