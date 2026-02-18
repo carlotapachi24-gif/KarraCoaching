@@ -11,6 +11,20 @@
   - Password: `123456`
 - Cualquier otro correo valido entra como cliente (sin registro).
 
+### Alta de usuarios cliente (Render)
+
+Puedes controlar los clientes con la variable de entorno `CLIENT_CREDENTIALS` en Render.
+
+Formato:
+`email1:password1,email2:password2,email3:password3`
+
+Ejemplo:
+`ana@gmail.com:ana123,pepe@gmail.com:pepe123,lucia@gmail.com:lucia123`
+
+Notas:
+- Si `CLIENT_CREDENTIALS` esta vacia o no existe, cualquier correo (que no sea coach) entra como cliente.
+- Si `CLIENT_CREDENTIALS` tiene datos, solo los correos listados podran entrar como cliente.
+
 ## Desarrollo local
 
 1. `npm install`

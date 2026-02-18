@@ -14,12 +14,34 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-in-production';
 const COACH_EMAIL = 'carlotaloopezcarracedo@gmail.com';
 const COACH_PASSWORD = '123456';
+const CLIENT_CREDENTIALS = process.env.CLIENT_CREDENTIALS || '';
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
 
 const sessions = new Map();
+
+function parseClientCredentials(rawValue) {
+  return rawValue
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .reduce((credentials, entry) => {
+      const [emailPart, ...passwordParts] = entry.split(':');
+      const email = (emailPart || '').trim().toLowerCase();
+      const password = passwordParts.join(':').trim();
+
+      if (!email || !password) {
+        return credentials;
+      }
+
+      credentials.set(email, password);
+      return credentials;
+    }, new Map());
+}
+
+const clientCredentialsMap = parseClientCredentials(CLIENT_CREDENTIALS);
 
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
@@ -158,6 +180,14 @@ async function handleApi(req, res, pathname) {
 
     if (email === COACH_EMAIL && password !== COACH_PASSWORD) {
       return json(req, res, 401, { message: 'Credenciales incorrectas' });
+    }
+
+    // If CLIENT_CREDENTIALS is configured, only listed client users can log in.
+    if (email !== COACH_EMAIL && clientCredentialsMap.size > 0) {
+      const expectedPassword = clientCredentialsMap.get(email);
+      if (!expectedPassword || expectedPassword !== password) {
+        return json(req, res, 401, { message: 'Credenciales incorrectas' });
+      }
     }
 
     const user = buildUserFromEmail(email);
