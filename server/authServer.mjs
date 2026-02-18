@@ -21,6 +21,7 @@ const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || '')
   .filter(Boolean);
 
 const sessions = new Map();
+const messagesStore = new Map();
 
 function parseClientCredentials(rawValue) {
   return rawValue
@@ -42,6 +43,20 @@ function parseClientCredentials(rawValue) {
 }
 
 const clientCredentialsMap = parseClientCredentials(CLIENT_CREDENTIALS);
+
+function conversationKey(emailA, emailB) {
+  return [emailA.toLowerCase(), emailB.toLowerCase()].sort().join('|');
+}
+
+function displayNameFromEmail(email) {
+  const localPart = (email.split('@')[0] || '').trim();
+  if (!localPart) return 'Cliente';
+  return localPart
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
 
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
@@ -155,7 +170,8 @@ function buildUserFromEmail(email) {
   };
 }
 
-async function handleApi(req, res, pathname) {
+async function handleApi(req, res, requestUrl) {
+  const pathname = requestUrl.pathname;
   if (req.method === 'OPTIONS') {
     res.writeHead(204, getCorsHeaders(req));
     res.end();
@@ -222,6 +238,89 @@ async function handleApi(req, res, pathname) {
     return json(req, res, 200, { success: true });
   }
 
+  if (pathname === '/api/clients' && req.method === 'GET') {
+    const session = readSession(req);
+    if (!session) {
+      return json(req, res, 401, { message: 'No autenticado' });
+    }
+    if (session.user.role !== 'COACH') {
+      return json(req, res, 403, { message: 'Solo coach' });
+    }
+
+    const fromConfigured = Array.from(clientCredentialsMap.keys());
+    const fromSessions = Array.from(sessions.values())
+      .map((item) => item.user)
+      .filter((user) => user.role === 'CLIENT')
+      .map((user) => user.email);
+    const uniqueEmails = Array.from(new Set([...fromConfigured, ...fromSessions]));
+    const clients = uniqueEmails.map((email) => ({
+      email,
+      name: displayNameFromEmail(email),
+    }));
+    return json(req, res, 200, { clients });
+  }
+
+  if (pathname === '/api/messages' && req.method === 'GET') {
+    const session = readSession(req);
+    if (!session) {
+      return json(req, res, 401, { message: 'No autenticado' });
+    }
+
+    const partnerEmail =
+      session.user.role === 'COACH'
+        ? String(requestUrl.searchParams.get('with') || '').trim().toLowerCase()
+        : COACH_EMAIL;
+
+    if (!partnerEmail || !partnerEmail.includes('@')) {
+      return json(req, res, 400, { message: 'Falta parametro "with"' });
+    }
+
+    const key = conversationKey(session.user.email, partnerEmail);
+    const messages = messagesStore.get(key) || [];
+    return json(req, res, 200, { messages });
+  }
+
+  if (pathname === '/api/messages' && req.method === 'POST') {
+    const session = readSession(req);
+    if (!session) {
+      return json(req, res, 401, { message: 'No autenticado' });
+    }
+
+    let body;
+    try {
+      body = await parseJsonBody(req);
+    } catch {
+      return json(req, res, 400, { message: 'Solicitud invalida' });
+    }
+
+    const toEmail = String(body.toEmail || '').trim().toLowerCase();
+    const text = String(body.text || '').trim();
+    if (!toEmail || !text) {
+      return json(req, res, 400, { message: 'toEmail y text son obligatorios' });
+    }
+
+    if (session.user.role === 'CLIENT' && toEmail !== COACH_EMAIL) {
+      return json(req, res, 403, { message: 'Un cliente solo puede escribir al coach' });
+    }
+
+    if (session.user.role === 'COACH' && toEmail === COACH_EMAIL) {
+      return json(req, res, 403, { message: 'Destino invalido' });
+    }
+
+    const key = conversationKey(session.user.email, toEmail);
+    const previous = messagesStore.get(key) || [];
+    const message = {
+      id: randomUUID(),
+      senderEmail: session.user.email,
+      senderRole: session.user.role,
+      text,
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [...previous, message];
+    messagesStore.set(key, updated);
+    return json(req, res, 201, { message });
+  }
+
   return json(req, res, 404, { message: 'Not found' });
 }
 
@@ -262,7 +361,7 @@ const server = createServer(async (req, res) => {
   const requestUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
 
   if (requestUrl.pathname.startsWith('/api/')) {
-    return handleApi(req, res, requestUrl.pathname);
+    return handleApi(req, res, requestUrl);
   }
 
   if (req.method !== 'GET' && req.method !== 'HEAD') {

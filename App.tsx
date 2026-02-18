@@ -283,7 +283,7 @@ function App() {
                 path="/activities"
                 element={user.role === UserRole.CLIENT ? <Activities /> : <Navigate to="/" replace />}
               />
-              <Route path="/messages" element={<Messages />} />
+              <Route path="/messages" element={<Messages currentUserEmail={user.email} currentUserRole={user.role} />} />
               <Route
                 path="/settings"
                 element={
