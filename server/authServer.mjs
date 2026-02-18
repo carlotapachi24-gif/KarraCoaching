@@ -12,7 +12,7 @@ const distDir = path.join(projectRoot, 'dist');
 const PORT = Number(process.env.PORT || 8787);
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-in-production';
-const COACH_EMAIL = 'carlotaloopezcarrracedo@gmail.com';
+const COACH_EMAIL = 'carlotaloopezcarracedo@gmail.com';
 const COACH_PASSWORD = '123456';
 
 const sessions = new Map();

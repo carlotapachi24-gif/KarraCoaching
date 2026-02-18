@@ -23,6 +23,6 @@ This contains everything you need to run your app locally.
 ## Login behavior
 
 - Coach account:
-  - Email: `carlotaloopezcarrracedo@gmail.com`
+  - Email: `carlotaloopezcarracedo@gmail.com`
   - Password: `123456`
 - Any other valid email logs in as client (password required, no signup flow).
