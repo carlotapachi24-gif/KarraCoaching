@@ -22,6 +22,7 @@ const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || '')
 
 const sessions = new Map();
 const messagesStore = new Map();
+const reviewsStore = [];
 
 function parseClientCredentials(rawValue) {
   return rawValue
@@ -56,6 +57,12 @@ function displayNameFromEmail(email) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
     .join(' ');
+}
+
+function ensureClientExists(email) {
+  if (!clientCredentialsMap.has(email)) {
+    clientCredentialsMap.set(email, '');
+  }
 }
 
 const contentTypes = {
@@ -319,6 +326,98 @@ async function handleApi(req, res, requestUrl) {
     const updated = [...previous, message];
     messagesStore.set(key, updated);
     return json(req, res, 201, { message });
+  }
+
+  if (pathname === '/api/checkins' && req.method === 'POST') {
+    const session = readSession(req);
+    if (!session) {
+      return json(req, res, 401, { message: 'No autenticado' });
+    }
+    if (session.user.role !== 'CLIENT') {
+      return json(req, res, 403, { message: 'Solo clientes' });
+    }
+
+    let body;
+    try {
+      body = await parseJsonBody(req);
+    } catch {
+      return json(req, res, 400, { message: 'Solicitud invalida' });
+    }
+
+    const review = {
+      id: randomUUID(),
+      clientEmail: session.user.email,
+      clientName: displayNameFromEmail(session.user.email),
+      submittedAt: new Date().toISOString(),
+      status: 'pending',
+      weightKg: Number(body.weightKg || 0),
+      energy: Number(body.energy || 0),
+      sleep: Number(body.sleep || 0),
+      stress: Number(body.stress || 0),
+      adherence: Number(body.adherence || 0),
+      comments: String(body.comments || '').trim(),
+      feedback: '',
+      reviewedAt: null,
+      reviewedBy: null,
+    };
+
+    if (!review.weightKg || review.energy < 1 || review.sleep < 1 || review.stress < 1 || review.adherence < 1) {
+      return json(req, res, 400, { message: 'Faltan datos del check-in' });
+    }
+
+    reviewsStore.unshift(review);
+    ensureClientExists(session.user.email);
+    return json(req, res, 201, { review });
+  }
+
+  if (pathname === '/api/reviews' && req.method === 'GET') {
+    const session = readSession(req);
+    if (!session) {
+      return json(req, res, 401, { message: 'No autenticado' });
+    }
+
+    if (session.user.role === 'COACH') {
+      return json(req, res, 200, { reviews: reviewsStore });
+    }
+
+    const ownReviews = reviewsStore.filter((review) => review.clientEmail === session.user.email);
+    return json(req, res, 200, { reviews: ownReviews });
+  }
+
+  const reviewFeedbackMatch = pathname.match(/^\/api\/reviews\/([^/]+)\/feedback$/);
+  if (reviewFeedbackMatch && req.method === 'POST') {
+    const session = readSession(req);
+    if (!session) {
+      return json(req, res, 401, { message: 'No autenticado' });
+    }
+    if (session.user.role !== 'COACH') {
+      return json(req, res, 403, { message: 'Solo coach' });
+    }
+
+    let body;
+    try {
+      body = await parseJsonBody(req);
+    } catch {
+      return json(req, res, 400, { message: 'Solicitud invalida' });
+    }
+
+    const feedback = String(body.feedback || '').trim();
+    if (!feedback) {
+      return json(req, res, 400, { message: 'Feedback obligatorio' });
+    }
+
+    const reviewId = reviewFeedbackMatch[1];
+    const targetReview = reviewsStore.find((review) => review.id === reviewId);
+    if (!targetReview) {
+      return json(req, res, 404, { message: 'Revision no encontrada' });
+    }
+
+    targetReview.feedback = feedback;
+    targetReview.status = 'completed';
+    targetReview.reviewedAt = new Date().toISOString();
+    targetReview.reviewedBy = session.user.email;
+
+    return json(req, res, 200, { review: targetReview });
   }
 
   return json(req, res, 404, { message: 'Not found' });
