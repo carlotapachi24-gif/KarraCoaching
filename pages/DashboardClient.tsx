@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   TrendingDown, 
   CheckCircle, 
@@ -44,6 +44,12 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
   const { clientId } = useParams();
   const isCoachView = !!clientId;
   const [activeTab, setActiveTab] = useState<'overview' | 'progress'>('overview');
+  const [latestFeedback, setLatestFeedback] = useState('');
+  const [pendingReviews, setPendingReviews] = useState(0);
+
+  const TOKEN_STORAGE_KEY = 'karra_auth_token';
+  const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+  const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
   const getClientName = () => {
     if (!clientId) return currentClientName;
@@ -56,6 +62,31 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
   };
 
   const clientName = getClientName();
+
+  useEffect(() => {
+    if (isCoachView) return;
+    const loadClientReviews = async () => {
+      try {
+        const token = window.localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+        const response = await fetch(apiUrl('/api/reviews'), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) return;
+        const data = (await response.json()) as {
+          reviews: Array<{ status: 'pending' | 'completed'; feedback: string; reviewedAt: string | null }>;
+        };
+        const pending = data.reviews.filter((review) => review.status === 'pending').length;
+        const completedWithFeedback = data.reviews
+          .filter((review) => review.status === 'completed' && review.feedback)
+          .sort((a, b) => new Date(b.reviewedAt || 0).getTime() - new Date(a.reviewedAt || 0).getTime());
+        setPendingReviews(pending);
+        setLatestFeedback(completedWithFeedback[0]?.feedback || '');
+      } catch {
+        // ignore in dashboard
+      }
+    };
+    loadClientReviews();
+  }, [isCoachView]);
   
   const [tasks, setTasks] = useState([
     { id: 1, title: "Registrar Entrenamiento", subtitle: "Prioridad Alta", status: "pending", isPriority: true },
@@ -258,8 +289,15 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
                      </div>
                    </div>
                    <div className="bg-slate-50 p-4 rounded-xl text-sm text-slate-600 italic font-medium border-l-4 border-primary">
-                     "¡Gran trabajo con el peso muerto ayer, {clientName}! La técnica se ve muy sólida. Hoy enfócate en el tempo."
+                     {latestFeedback
+                       ? `"${latestFeedback}"`
+                       : '"Aun no hay feedback de revision. Cuando el coach valide tu check-in lo veras aqui."'}
                    </div>
+                   {pendingReviews > 0 && (
+                     <p className="text-[10px] font-black uppercase tracking-wider text-primary mt-2">
+                       {pendingReviews} revision(es) pendiente(s) de validar
+                     </p>
+                   )}
                    <button 
                     onClick={() => navigate('/messages')}
                     className="w-full mt-3 py-3 rounded-xl border-2 border-primary/10 text-primary text-xs font-black hover:bg-primary hover:text-white transition-colors uppercase tracking-widest italic">

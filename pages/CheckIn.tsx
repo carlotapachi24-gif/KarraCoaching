@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Upload, Camera, Scale, Zap, Moon, Save, Info } from 'lucide-react';
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
@@ -13,6 +13,31 @@ export const CheckIn: React.FC = () => {
   const [stress, setStress] = useState(5);
   const [adherence, setAdherence] = useState(8);
   const [comments, setComments] = useState('');
+  const [latestFeedback, setLatestFeedback] = useState('');
+  const [pendingReviews, setPendingReviews] = useState(0);
+
+  const loadReviewStatus = async () => {
+    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+    const response = await fetch(apiUrl('/api/reviews'), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      return;
+    }
+    const data = (await response.json()) as {
+      reviews: Array<{ status: 'pending' | 'completed'; feedback: string; reviewedAt: string | null }>;
+    };
+    const pending = data.reviews.filter((review) => review.status === 'pending').length;
+    const completedWithFeedback = data.reviews
+      .filter((review) => review.status === 'completed' && review.feedback)
+      .sort((a, b) => new Date(b.reviewedAt || 0).getTime() - new Date(a.reviewedAt || 0).getTime());
+    setPendingReviews(pending);
+    setLatestFeedback(completedWithFeedback[0]?.feedback || '');
+  };
+
+  useEffect(() => {
+    loadReviewStatus();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +72,7 @@ export const CheckIn: React.FC = () => {
 
       alert('Check-in enviado correctamente. Tu coach ya puede revisarlo.');
       setComments('');
+      await loadReviewStatus();
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Error al enviar check-in');
     } finally {
@@ -60,6 +86,22 @@ export const CheckIn: React.FC = () => {
         <h1 className="font-display text-4xl md:text-5xl font-black text-text uppercase italic tracking-tighter">Check-in Semanal</h1>
         <p className="text-slate-500 mt-2 font-bold uppercase tracking-wide text-sm">Datos para revision del coach.</p>
       </header>
+
+      {(latestFeedback || pendingReviews > 0) && (
+        <section className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+          {pendingReviews > 0 && (
+            <p className="text-xs font-black uppercase tracking-wider text-primary mb-2">
+              Tienes {pendingReviews} revision(es) pendiente(s) de validar por el coach.
+            </p>
+          )}
+          {latestFeedback && (
+            <div className="bg-slate-50 p-4 rounded-xl border-l-4 border-primary">
+              <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Ultimo feedback del coach</p>
+              <p className="text-sm text-slate-700 font-medium italic">"{latestFeedback}"</p>
+            </div>
+          )}
+        </section>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-8">
         <section className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
