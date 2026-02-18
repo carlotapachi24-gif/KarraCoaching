@@ -3,15 +3,23 @@ import { User, Bell, Lock, Save, Mail, Camera, LogOut, Shield, AlertCircle, Load
 
 type Tab = 'profile' | 'notifications' | 'security';
 
-export const Settings: React.FC = () => {
+interface SettingsProps {
+  userName?: string;
+  userEmail?: string;
+}
+
+export const Settings: React.FC<SettingsProps> = ({ userName = 'Cliente', userEmail = 'cliente@example.com' }) => {
   const [activeTab, setActiveTab] = useState<Tab>('profile');
+
+  const [firstName = userName, ...lastNameParts] = userName.split(' ').filter(Boolean);
+  const lastName = lastNameParts.join(' ');
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'profile': return <ProfileSection />;
+      case 'profile': return <ProfileSection firstName={firstName} lastName={lastName} email={userEmail} />;
       case 'notifications': return <NotificationsSection />;
       case 'security': return <SecuritySection />;
-      default: return <ProfileSection />;
+      default: return <ProfileSection firstName={firstName} lastName={lastName} email={userEmail} />;
     }
   };
 
@@ -55,9 +63,9 @@ const SettingsNav = ({ icon: Icon, label, active = false, onClick }: { icon: any
   </button>
 );
 
-const ProfileSection = () => {
+const ProfileSection = ({ firstName, lastName, email }: { firstName: string; lastName: string; email: string }) => {
   const [isSaving, setIsSaving] = useState(false);
-  const [avatar, setAvatar] = useState("https://picsum.photos/seed/alex/150");
+  const [avatar, setAvatar] = useState(`https://picsum.photos/seed/${encodeURIComponent(email)}/150`);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = () => {
@@ -103,10 +111,10 @@ const ProfileSection = () => {
 
         <div className="flex-1 w-full space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <InputGroup label="Nombre" defaultValue="Alex" />
-            <InputGroup label="Apellidos" defaultValue="Rivera" />
+            <InputGroup label="Nombre" defaultValue={firstName} />
+            <InputGroup label="Apellidos" defaultValue={lastName} />
           </div>
-          <InputGroup label="Email" type="email" defaultValue="alex.rivera@example.com" icon={Mail} />
+          <InputGroup label="Email" type="email" defaultValue={email} icon={Mail} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <InputGroup label="Teléfono" type="tel" defaultValue="+34 600 000 000" />
               <InputGroup label="Fecha de Nacimiento" type="date" defaultValue="1995-05-20" />

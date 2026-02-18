@@ -19,10 +19,11 @@ import { Link, useLocation } from 'react-router-dom';
 interface SidebarProps {
   role: UserRole;
   email: string;
+  displayName: string;
   onLogout: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ role, email, onLogout }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ role, email, displayName, onLogout }) => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
   const logoFileName = 'ChatGPT Image 17 feb 2026, 15_33_32.png';
@@ -46,8 +47,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, email, onLogout }) => {
       <span className={`font-bold uppercase tracking-tight ${isActive(to) ? 'skew-x-[5deg]' : ''}`}>{label}</span>
     </Link>
   );
-
-  const displayName = role === UserRole.CLIENT ? 'Cliente' : 'Coach';
 
   return (
     <>

@@ -7,9 +7,10 @@ import { jsPDF } from 'jspdf';
 interface ProfileProps {
   isEmbedded?: boolean;
   clientName?: string;
+  clientEmail?: string;
 }
 
-export const Profile: React.FC<ProfileProps> = ({ isEmbedded = false, clientName = 'Alex Rivera' }) => {
+export const Profile: React.FC<ProfileProps> = ({ isEmbedded = false, clientName = 'Cliente', clientEmail = 'cliente@example.com' }) => {
   const [selectedPrExercise, setSelectedPrExercise] = useState<'squat' | 'bench' | 'deadlift'>('squat');
   
   // Progress State
@@ -65,7 +66,7 @@ export const Profile: React.FC<ProfileProps> = ({ isEmbedded = false, clientName
     height: 182,
     startWeight: 90.2,
     currentWeight: 83.5,
-    email: 'cliente@example.com',
+    email: clientEmail,
     level: 'Intermedio',
     // New Fields
     objective: 'Mejorar la composición corporal reduciendo grasa y aumentar el rendimiento en carrera (10k) sin perder fuerza máxima.',

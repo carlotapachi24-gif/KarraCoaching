@@ -15,14 +15,20 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Profile } from './Profile';
 
-export const DashboardClient: React.FC = () => {
+interface DashboardClientProps {
+  currentClientName?: string;
+  currentClientFullName?: string;
+  currentClientEmail?: string;
+}
+
+export const DashboardClient: React.FC<DashboardClientProps> = ({ currentClientName = 'Cliente', currentClientFullName = 'Cliente', currentClientEmail = 'cliente@example.com' }) => {
   const navigate = useNavigate();
   const { clientId } = useParams();
   const isCoachView = !!clientId;
   const [activeTab, setActiveTab] = useState<'overview' | 'progress'>('overview');
 
   const getClientName = () => {
-    if (!clientId) return "Alex";
+    if (!clientId) return currentClientName;
     switch(clientId) {
       case '1': return "Alex";
       case '2': return "María";
@@ -248,7 +254,7 @@ export const DashboardClient: React.FC = () => {
         </div>
       ) : (
         /* Progress Tab: Embeds Profile Component */
-        <Profile isEmbedded={true} clientName={clientName} />
+        <Profile isEmbedded={true} clientName={clientId ? clientName : currentClientFullName} clientEmail={currentClientEmail} />
       )}
     </div>
   );

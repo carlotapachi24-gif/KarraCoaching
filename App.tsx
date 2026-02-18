@@ -14,6 +14,7 @@ import { Profile } from './pages/Profile';
 import { Activities } from './pages/Activities';
 import { UserRole } from './types';
 import { Login } from './pages/Login';
+import { deriveUserIdentity } from './utils/userIdentity';
 
 interface AuthUser {
   email: string;
@@ -147,17 +148,25 @@ function App() {
     return <Login onLogin={handleLogin} />;
   }
 
+  const userIdentity = deriveUserIdentity(user.email, user.role);
+
   return (
     <Router>
       <div className="flex min-h-screen bg-background font-sans text-text">
-        <Sidebar role={user.role} email={user.email} onLogout={handleLogout} />
+        <Sidebar role={user.role} email={user.email} displayName={userIdentity.fullName} onLogout={handleLogout} />
 
         <main className="flex-1 p-4 md:p-8 lg:p-10 pt-20 md:pt-10 overflow-x-hidden">
           <div className="max-w-7xl mx-auto">
             <Routes>
               <Route
                 path="/"
-                element={user.role === UserRole.CLIENT ? <DashboardClient /> : <DashboardCoach />}
+                element={
+                  user.role === UserRole.CLIENT ? (
+                    <DashboardClient currentClientName={userIdentity.firstName} currentClientFullName={userIdentity.fullName} currentClientEmail={user.email} />
+                  ) : (
+                    <DashboardCoach />
+                  )
+                }
               />
 
               <Route
@@ -166,7 +175,13 @@ function App() {
               />
               <Route
                 path="/profile"
-                element={user.role === UserRole.CLIENT ? <Profile /> : <Navigate to="/" replace />}
+                element={
+                  user.role === UserRole.CLIENT ? (
+                    <Profile clientName={userIdentity.fullName} clientEmail={user.email} />
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
+                }
               />
               <Route
                 path="/checkin"
@@ -181,7 +196,10 @@ function App() {
                 element={user.role === UserRole.CLIENT ? <Activities /> : <Navigate to="/" replace />}
               />
               <Route path="/messages" element={<Messages />} />
-              <Route path="/settings" element={<Settings />} />
+              <Route
+                path="/settings"
+                element={user.role === UserRole.CLIENT ? <Settings userName={userIdentity.fullName} userEmail={user.email} /> : <Settings userName="Carlota" userEmail={user.email} />}
+              />
               <Route
                 path="/clients"
                 element={user.role === UserRole.COACH ? <Clients /> : <Navigate to="/" replace />}
