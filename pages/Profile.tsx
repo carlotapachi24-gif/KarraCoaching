@@ -8,9 +8,17 @@ interface ProfileProps {
   isEmbedded?: boolean;
   clientName?: string;
   clientEmail?: string;
+  avatarUrl?: string;
+  objectiveText?: string;
 }
 
-export const Profile: React.FC<ProfileProps> = ({ isEmbedded = false, clientName = 'Cliente', clientEmail = 'cliente@example.com' }) => {
+export const Profile: React.FC<ProfileProps> = ({
+  isEmbedded = false,
+  clientName = 'Cliente',
+  clientEmail = 'cliente@example.com',
+  avatarUrl,
+  objectiveText,
+}) => {
   const [selectedPrExercise, setSelectedPrExercise] = useState<'squat' | 'bench' | 'deadlift'>('squat');
   
   // Progress State
@@ -69,7 +77,7 @@ export const Profile: React.FC<ProfileProps> = ({ isEmbedded = false, clientName
     email: clientEmail,
     level: 'Intermedio',
     // New Fields
-    objective: 'Mejorar la composición corporal reduciendo grasa y aumentar el rendimiento en carrera (10k) sin perder fuerza máxima.',
+    objective: objectiveText || 'Mejorar la composición corporal reduciendo grasa y aumentar el rendimiento en carrera (10k) sin perder fuerza máxima.',
     injuries: [
       'Tendinopatía rotuliana leve (Rodilla derecha) - En rehabilitación.',
       'Molestia hombro izquierdo en press vertical pesado.'
@@ -147,7 +155,7 @@ export const Profile: React.FC<ProfileProps> = ({ isEmbedded = false, clientName
         <div className="relative z-10 flex flex-col md:flex-row gap-8 items-center md:items-start">
           <div className="flex-shrink-0 text-center md:text-left">
             <div className="w-32 h-32 rounded-full p-1 border-4 border-primary/20 mb-4 mx-auto md:mx-0">
-               <img src={`https://picsum.photos/seed/${clientName}/200`} alt="Profile" className="w-full h-full rounded-full object-cover" />
+               <img src={avatarUrl || `https://picsum.photos/seed/${clientName}/200`} alt="Profile" className="w-full h-full rounded-full object-cover" />
             </div>
             <h2 className="font-display font-black italic uppercase text-2xl text-text leading-none">{personalData.name}</h2>
             <span className="text-xs font-black text-primary uppercase tracking-widest">{personalData.level}</span>

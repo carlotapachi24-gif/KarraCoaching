@@ -19,9 +19,17 @@ interface DashboardClientProps {
   currentClientName?: string;
   currentClientFullName?: string;
   currentClientEmail?: string;
+  currentClientAvatarUrl?: string;
+  currentClientBio?: string;
 }
 
-export const DashboardClient: React.FC<DashboardClientProps> = ({ currentClientName = 'Cliente', currentClientFullName = 'Cliente', currentClientEmail = 'cliente@example.com' }) => {
+export const DashboardClient: React.FC<DashboardClientProps> = ({
+  currentClientName = 'Cliente',
+  currentClientFullName = 'Cliente',
+  currentClientEmail = 'cliente@example.com',
+  currentClientAvatarUrl,
+  currentClientBio,
+}) => {
   const navigate = useNavigate();
   const { clientId } = useParams();
   const isCoachView = !!clientId;
@@ -254,7 +262,13 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({ currentClientN
         </div>
       ) : (
         /* Progress Tab: Embeds Profile Component */
-        <Profile isEmbedded={true} clientName={clientId ? clientName : currentClientFullName} clientEmail={currentClientEmail} />
+        <Profile
+          isEmbedded={true}
+          clientName={clientId ? clientName : currentClientFullName}
+          clientEmail={currentClientEmail}
+          avatarUrl={currentClientAvatarUrl}
+          objectiveText={currentClientBio}
+        />
       )}
     </div>
   );

@@ -41,3 +41,13 @@ export interface WorkoutDay {
   exercises: Exercise[];
   duration: number; // minutes
 }
+
+export interface ClientProfileData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  birthDate: string;
+  bio: string;
+  avatarUrl: string;
+}

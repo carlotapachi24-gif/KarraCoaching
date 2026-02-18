@@ -12,7 +12,7 @@ import { Reviews } from './pages/Reviews';
 import { Library } from './pages/Library';
 import { Profile } from './pages/Profile';
 import { Activities } from './pages/Activities';
-import { UserRole } from './types';
+import { ClientProfileData, UserRole } from './types';
 import { Login } from './pages/Login';
 import { deriveUserIdentity } from './utils/userIdentity';
 
@@ -30,6 +30,7 @@ interface LoginResponse extends SessionResponse {
 }
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
+const PROFILE_STORAGE_KEY_PREFIX = 'karra_client_profile_';
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const IS_GITHUB_PAGES = window.location.hostname.endsWith('github.io');
 
@@ -37,7 +38,51 @@ const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
 function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [clientProfile, setClientProfile] = useState<ClientProfileData | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
+
+  const buildDefaultProfile = useCallback((email: string): ClientProfileData => {
+    const identity = deriveUserIdentity(email, UserRole.CLIENT);
+    const parts = identity.fullName.split(' ');
+    const [firstName = identity.firstName, ...rest] = parts;
+    return {
+      firstName,
+      lastName: rest.join(' '),
+      email,
+      phone: '+34 600 000 000',
+      birthDate: '1995-05-20',
+      bio: 'Quiero mejorar mi fuerza en basicos y bajar un 5% de grasa corporal para el verano.',
+      avatarUrl: `https://picsum.photos/seed/${encodeURIComponent(email)}/150`,
+    };
+  }, []);
+
+  const loadStoredProfile = useCallback(
+    (email: string): ClientProfileData => {
+      const storageKey = `${PROFILE_STORAGE_KEY_PREFIX}${email.toLowerCase()}`;
+      const raw = window.localStorage.getItem(storageKey);
+      if (!raw) {
+        return buildDefaultProfile(email);
+      }
+
+      try {
+        const parsed = JSON.parse(raw) as Partial<ClientProfileData>;
+        return {
+          ...buildDefaultProfile(email),
+          ...parsed,
+          email,
+        };
+      } catch {
+        return buildDefaultProfile(email);
+      }
+    },
+    [buildDefaultProfile],
+  );
+
+  const saveProfile = useCallback((email: string, profile: ClientProfileData) => {
+    const storageKey = `${PROFILE_STORAGE_KEY_PREFIX}${email.toLowerCase()}`;
+    window.localStorage.setItem(storageKey, JSON.stringify(profile));
+    setClientProfile(profile);
+  }, []);
 
   const fetchSession = useCallback(async () => {
     const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
@@ -74,6 +119,15 @@ function App() {
   useEffect(() => {
     fetchSession();
   }, [fetchSession]);
+
+  useEffect(() => {
+    if (!user || user.role !== UserRole.CLIENT) {
+      setClientProfile(null);
+      return;
+    }
+
+    setClientProfile(loadStoredProfile(user.email));
+  }, [loadStoredProfile, user]);
 
   const handleLogin = async (email: string, password: string) => {
     if (IS_GITHUB_PAGES && !API_BASE) {
@@ -148,7 +202,13 @@ function App() {
     return <Login onLogin={handleLogin} />;
   }
 
-  const userIdentity = deriveUserIdentity(user.email, user.role);
+  const userIdentity =
+    user.role === UserRole.CLIENT && clientProfile
+      ? {
+          firstName: clientProfile.firstName || 'Cliente',
+          fullName: `${clientProfile.firstName} ${clientProfile.lastName}`.trim(),
+        }
+      : deriveUserIdentity(user.email, user.role);
 
   return (
     <Router>
@@ -162,7 +222,13 @@ function App() {
                 path="/"
                 element={
                   user.role === UserRole.CLIENT ? (
-                    <DashboardClient currentClientName={userIdentity.firstName} currentClientFullName={userIdentity.fullName} currentClientEmail={user.email} />
+                    <DashboardClient
+                      currentClientName={userIdentity.firstName}
+                      currentClientFullName={userIdentity.fullName}
+                      currentClientEmail={user.email}
+                      currentClientAvatarUrl={clientProfile?.avatarUrl}
+                      currentClientBio={clientProfile?.bio}
+                    />
                   ) : (
                     <DashboardCoach />
                   )
@@ -177,7 +243,12 @@ function App() {
                 path="/profile"
                 element={
                   user.role === UserRole.CLIENT ? (
-                    <Profile clientName={userIdentity.fullName} clientEmail={user.email} />
+                    <Profile
+                      clientName={userIdentity.fullName}
+                      clientEmail={user.email}
+                      avatarUrl={clientProfile?.avatarUrl}
+                      objectiveText={clientProfile?.bio}
+                    />
                   ) : (
                     <Navigate to="/" replace />
                   )
@@ -198,7 +269,18 @@ function App() {
               <Route path="/messages" element={<Messages />} />
               <Route
                 path="/settings"
-                element={user.role === UserRole.CLIENT ? <Settings userName={userIdentity.fullName} userEmail={user.email} /> : <Settings userName="Carlota" userEmail={user.email} />}
+                element={
+                  user.role === UserRole.CLIENT ? (
+                    <Settings
+                      userName={userIdentity.fullName}
+                      userEmail={user.email}
+                      initialProfile={clientProfile || loadStoredProfile(user.email)}
+                      onSaveProfile={(updated) => saveProfile(user.email, updated)}
+                    />
+                  ) : (
+                    <Settings userName="Carlota" userEmail={user.email} />
+                  )
+                }
               />
               <Route
                 path="/clients"
