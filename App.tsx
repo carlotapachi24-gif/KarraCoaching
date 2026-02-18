@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useCallback, useEffect, useState } from 'react';
+import { HashRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { DashboardClient } from './pages/DashboardClient';
 import { DashboardCoach } from './pages/DashboardCoach';
@@ -13,45 +13,145 @@ import { Library } from './pages/Library';
 import { Profile } from './pages/Profile';
 import { Activities } from './pages/Activities';
 import { UserRole } from './types';
+import { Login } from './pages/Login';
+
+interface AuthUser {
+  email: string;
+  role: UserRole;
+}
+
+interface SessionResponse {
+  user: AuthUser;
+}
 
 function App() {
-  const [role, setRole] = useState<UserRole>(UserRole.CLIENT);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
+
+  const fetchSession = useCallback(async () => {
+    try {
+      const response = await fetch('/api/session', {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        setUser(null);
+        return;
+      }
+
+      const sessionData = (await response.json()) as SessionResponse;
+      setUser(sessionData.user);
+    } catch {
+      setUser(null);
+    } finally {
+      setIsLoadingSession(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSession();
+  }, [fetchSession]);
+
+  const handleLogin = async (email: string, password: string) => {
+    const response = await fetch('/api/login', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: 'No se pudo iniciar sesion' }));
+      throw new Error(errorBody.message || 'No se pudo iniciar sesion');
+    }
+
+    const sessionData = (await response.json()) as SessionResponse;
+    setUser(sessionData.user);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } finally {
+      setUser(null);
+    }
+  };
+
+  if (isLoadingSession) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="font-display font-bold text-xl text-slate-500 uppercase tracking-wide">Cargando...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login onLogin={handleLogin} />;
+  }
 
   return (
     <Router>
       <div className="flex min-h-screen bg-background font-sans text-text">
-        {/* Navigation Sidebar */}
-        <Sidebar role={role} setRole={setRole} />
+        <Sidebar role={user.role} email={user.email} onLogout={handleLogout} />
 
-        {/* Main Content Area */}
         <main className="flex-1 p-4 md:p-8 lg:p-10 pt-20 md:pt-10 overflow-x-hidden">
           <div className="max-w-7xl mx-auto">
             <Routes>
-              {/* Home route switches based on role for demo purposes */}
-              <Route 
-                path="/" 
-                element={role === UserRole.CLIENT ? <DashboardClient /> : <DashboardCoach />} 
+              <Route
+                path="/"
+                element={user.role === UserRole.CLIENT ? <DashboardClient /> : <DashboardCoach />}
               />
-              
-              {/* Specific Pages */}
-              <Route path="/client/:clientId" element={<DashboardClient />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/checkin" element={<CheckIn />} />
-              <Route path="/plan" element={<Plan />} />
-              <Route path="/activities" element={<Activities />} />
+
+              <Route
+                path="/client/:clientId"
+                element={user.role === UserRole.COACH ? <DashboardClient /> : <Navigate to="/" replace />}
+              />
+              <Route
+                path="/profile"
+                element={user.role === UserRole.CLIENT ? <Profile /> : <Navigate to="/" replace />}
+              />
+              <Route
+                path="/checkin"
+                element={user.role === UserRole.CLIENT ? <CheckIn /> : <Navigate to="/" replace />}
+              />
+              <Route
+                path="/plan"
+                element={user.role === UserRole.CLIENT ? <Plan /> : <Navigate to="/" replace />}
+              />
+              <Route
+                path="/activities"
+                element={user.role === UserRole.CLIENT ? <Activities /> : <Navigate to="/" replace />}
+              />
               <Route path="/messages" element={<Messages />} />
               <Route path="/settings" element={<Settings />} />
-              <Route path="/clients" element={<Clients />} />
-              <Route path="/reviews" element={<Reviews />} />
-              <Route path="/library" element={<Library />} />
-              
-              {/* Fallbacks/Placeholders for demo */}
-              <Route path="*" element={
-                <div className="flex flex-col items-center justify-center h-[50vh] text-slate-400">
-                  <span className="font-display text-2xl font-bold mb-2">Próximamente</span>
-                  <p>Esta página está en construcción para el MVP.</p>
-                </div>
-              } />
+              <Route
+                path="/clients"
+                element={user.role === UserRole.COACH ? <Clients /> : <Navigate to="/" replace />}
+              />
+              <Route
+                path="/reviews"
+                element={user.role === UserRole.COACH ? <Reviews /> : <Navigate to="/" replace />}
+              />
+              <Route
+                path="/library"
+                element={user.role === UserRole.COACH ? <Library /> : <Navigate to="/" replace />}
+              />
+
+              <Route
+                path="*"
+                element={
+                  <div className="flex flex-col items-center justify-center h-[50vh] text-slate-400">
+                    <span className="font-display text-2xl font-bold mb-2">Proximamente</span>
+                    <p>Esta pagina esta en construccion.</p>
+                  </div>
+                }
+              />
             </Routes>
           </div>
         </main>
