@@ -24,18 +24,38 @@ interface SessionResponse {
   user: AuthUser;
 }
 
+interface LoginResponse extends SessionResponse {
+  token: string;
+}
+
+const TOKEN_STORAGE_KEY = 'karra_auth_token';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+
+const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
+
 function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
 
   const fetchSession = useCallback(async () => {
+    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+
+    if (!token) {
+      setUser(null);
+      setIsLoadingSession(false);
+      return;
+    }
+
     try {
-      const response = await fetch('/api/session', {
+      const response = await fetch(apiUrl('/api/session'), {
         method: 'GET',
-        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       if (!response.ok) {
+        window.localStorage.removeItem(TOKEN_STORAGE_KEY);
         setUser(null);
         return;
       }
@@ -55,9 +75,8 @@ function App() {
 
   const handleLogin = async (email: string, password: string) => {
     try {
-      const response = await fetch('/api/login', {
+      const response = await fetch(apiUrl('/api/login'), {
         method: 'POST',
-        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -73,15 +92,16 @@ function App() {
           message = parsed.message || message;
         } catch {
           if (response.status === 404) {
-            message = 'Backend no disponible en /api/login';
+            message = `Backend no disponible en ${apiUrl('/api/login')}`;
           }
         }
 
         throw new Error(message);
       }
 
-      const sessionData = (await response.json()) as SessionResponse;
-      setUser(sessionData.user);
+      const loginData = (await response.json()) as LoginResponse;
+      window.localStorage.setItem(TOKEN_STORAGE_KEY, loginData.token);
+      setUser(loginData.user);
     } catch (error) {
       if (error instanceof Error) {
         throw error;
@@ -91,12 +111,19 @@ function App() {
   };
 
   const handleLogout = async () => {
+    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+
     try {
-      await fetch('/api/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
+      if (token) {
+        await fetch(apiUrl('/api/logout'), {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      }
     } finally {
+      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
       setUser(null);
     }
   };

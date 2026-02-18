@@ -14,6 +14,10 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-in-production';
 const COACH_EMAIL = 'carlotaloopezcarracedo@gmail.com';
 const COACH_PASSWORD = '123456';
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
 
 const sessions = new Map();
 
@@ -31,70 +35,75 @@ const contentTypes = {
   '.woff2': 'font/woff2',
 };
 
-function json(res, statusCode, body) {
+function getCorsHeaders(req) {
+  const requestOrigin = req.headers.origin || '';
+  let allowOrigin = '*';
+
+  if (ALLOWED_ORIGINS.length > 0) {
+    allowOrigin = ALLOWED_ORIGINS.includes(requestOrigin) ? requestOrigin : ALLOWED_ORIGINS[0];
+  }
+
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    Vary: 'Origin',
+  };
+}
+
+function json(req, res, statusCode, body) {
   res.writeHead(statusCode, {
+    ...getCorsHeaders(req),
     'Content-Type': 'application/json; charset=utf-8',
   });
   res.end(JSON.stringify(body));
 }
 
-function parseCookies(cookieHeader = '') {
-  return cookieHeader.split(';').reduce((cookies, item) => {
-    const [rawKey, ...rest] = item.trim().split('=');
-    if (!rawKey) {
-      return cookies;
-    }
-
-    cookies[rawKey] = decodeURIComponent(rest.join('='));
-    return cookies;
-  }, {});
+function signTokenId(tokenId) {
+  return createHmac('sha256', SESSION_SECRET).update(tokenId).digest('hex');
 }
 
-function signSessionId(sessionId) {
-  return createHmac('sha256', SESSION_SECRET).update(sessionId).digest('hex');
+function createAuthToken() {
+  const tokenId = randomUUID();
+  const signature = signTokenId(tokenId);
+  return `${tokenId}.${signature}`;
 }
 
-function encodeSessionCookie(sessionId) {
-  const signature = signSessionId(sessionId);
-  const value = `${sessionId}.${signature}`;
-  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-  return `karra_session=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(
-    SESSION_TTL_MS / 1000,
-  )}${secure}`;
-}
+function parseBearerToken(req) {
+  const authHeader = req.headers.authorization || '';
+  if (!authHeader.startsWith('Bearer ')) {
+    return null;
+  }
 
-function clearSessionCookie() {
-  return 'karra_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0';
+  return authHeader.slice('Bearer '.length).trim();
 }
 
 function readSession(req) {
-  const cookies = parseCookies(req.headers.cookie);
-  const rawToken = cookies.karra_session;
-
-  if (!rawToken) {
+  const token = parseBearerToken(req);
+  if (!token) {
     return null;
   }
 
-  const [sessionId, signature] = rawToken.split('.');
-  if (!sessionId || !signature) {
+  const [tokenId, signature] = token.split('.');
+  if (!tokenId || !signature) {
     return null;
   }
 
-  if (signSessionId(sessionId) !== signature) {
+  if (signTokenId(tokenId) !== signature) {
     return null;
   }
 
-  const session = sessions.get(sessionId);
+  const session = sessions.get(tokenId);
   if (!session) {
     return null;
   }
 
   if (session.expiresAt <= Date.now()) {
-    sessions.delete(sessionId);
+    sessions.delete(tokenId);
     return null;
   }
 
-  return { sessionId, ...session };
+  return { tokenId, ...session };
 }
 
 async function parseJsonBody(req) {
@@ -125,68 +134,65 @@ function buildUserFromEmail(email) {
 }
 
 async function handleApi(req, res, pathname) {
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, getCorsHeaders(req));
+    res.end();
+    return;
+  }
+
   if (pathname === '/api/login' && req.method === 'POST') {
     let body;
 
     try {
       body = await parseJsonBody(req);
     } catch {
-      return json(res, 400, { message: 'Solicitud invalida' });
+      return json(req, res, 400, { message: 'Solicitud invalida' });
     }
 
     const email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '');
 
     if (!email || !password || !email.includes('@')) {
-      return json(res, 400, { message: 'Correo y contrasena obligatorios' });
+      return json(req, res, 400, { message: 'Correo y contrasena obligatorios' });
     }
 
     if (email === COACH_EMAIL && password !== COACH_PASSWORD) {
-      return json(res, 401, { message: 'Credenciales incorrectas' });
+      return json(req, res, 401, { message: 'Credenciales incorrectas' });
     }
 
     const user = buildUserFromEmail(email);
-    const sessionId = randomUUID();
+    const token = createAuthToken();
+    const [tokenId] = token.split('.');
 
-    sessions.set(sessionId, {
+    sessions.set(tokenId, {
       user,
       expiresAt: Date.now() + SESSION_TTL_MS,
     });
 
-    res.writeHead(200, {
-      'Set-Cookie': encodeSessionCookie(sessionId),
-      'Content-Type': 'application/json; charset=utf-8',
-    });
-    res.end(JSON.stringify({ user }));
-    return;
+    return json(req, res, 200, { user, token });
   }
 
   if (pathname === '/api/session' && req.method === 'GET') {
     const session = readSession(req);
 
     if (!session) {
-      return json(res, 401, { message: 'No autenticado' });
+      return json(req, res, 401, { message: 'No autenticado' });
     }
 
-    return json(res, 200, { user: session.user });
+    return json(req, res, 200, { user: session.user });
   }
 
   if (pathname === '/api/logout' && req.method === 'POST') {
     const session = readSession(req);
 
     if (session) {
-      sessions.delete(session.sessionId);
+      sessions.delete(session.tokenId);
     }
 
-    res.writeHead(200, {
-      'Set-Cookie': clearSessionCookie(),
-      'Content-Type': 'application/json; charset=utf-8',
-    });
-    res.end(JSON.stringify({ success: true }));
-    return;
+    return json(req, res, 200, { success: true });
   }
 
-  return json(res, 404, { message: 'Not found' });
+  return json(req, res, 404, { message: 'Not found' });
 }
 
 async function serveStatic(res, pathname) {
