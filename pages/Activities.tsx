@@ -47,8 +47,8 @@ const initialActivities: Activity[] = [
     user: 'Alex Rivera',
     avatar: 'https://picsum.photos/seed/alex/100',
     date: 'Hoy, 07:30 AM',
-    title: 'Rodaje suave matutino â˜€ï¸',
-    description: 'Probando las nuevas zapatillas. Ritmo cÃ³modo y pulsaciones bajas.',
+    title: 'Rodaje suave matutino',
+    description: 'Probando las nuevas zapatillas. Ritmo comodo y pulsaciones bajas.',
     type: 'Run',
     stats: [
       { label: 'Distancia', value: '8.52', unit: 'km' },
@@ -66,7 +66,7 @@ const initialActivities: Activity[] = [
     avatar: 'https://picsum.photos/seed/coach/100',
     date: 'Ayer, 18:45 PM',
     title: 'Pierna: Foco en Sentadilla',
-    description: 'Buscando RPE 9 en la top set. La tÃ©cnica se sintiÃ³ sÃ³lida.',
+    description: 'Buscando RPE 9 en la top set. La tecnica se sintio solida.',
     type: 'WeightTraining',
     stats: [
       { label: 'Volumen', value: '12.4', unit: 'ton' },
@@ -80,10 +80,10 @@ const initialActivities: Activity[] = [
   },
   {
     id: 3,
-    user: 'MarÃ­a GarcÃ­a',
+    user: 'Maria Garcia',
     avatar: 'https://picsum.photos/seed/maria/100',
     date: 'Ayer, 08:00 AM',
-    title: 'Salida de Domingo ðŸš´â€â™€ï¸',
+    title: 'Salida de Domingo en bici',
     type: 'Ride',
     stats: [
       { label: 'Distancia', value: '45.2', unit: 'km' },
@@ -230,7 +230,7 @@ export const Activities: React.FC = () => {
               {/* Title & Type */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-2">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">TÃ­tulo</label>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Titulo</label>
                   <input 
                     type="text" 
                     required
@@ -257,7 +257,7 @@ export const Activities: React.FC = () => {
               {/* Duration & Description */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                  <div>
-                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">DuraciÃ³n</label>
+                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Duracion</label>
                    <div className="relative">
                      <input 
                        type="text" 
@@ -270,10 +270,10 @@ export const Activities: React.FC = () => {
                    </div>
                  </div>
                  <div className="md:col-span-2">
-                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">DescripciÃ³n</label>
+                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Descripcion</label>
                    <textarea 
                      rows={1}
-                     placeholder="Â¿CÃ³mo te sentiste?" 
+                     placeholder="Como te sentiste?" 
                      value={newActivity.description}
                      onChange={e => setNewActivity({...newActivity, description: e.target.value})}
                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none font-medium text-text resize-none placeholder:font-medium"
@@ -332,7 +332,7 @@ export const Activities: React.FC = () => {
                 : 'border-transparent text-slate-400 hover:text-slate-600'
             }`}
           >
-            TÃº
+            Tu
           </button>
         </div>
       </header>

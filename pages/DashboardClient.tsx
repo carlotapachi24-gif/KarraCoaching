@@ -127,7 +127,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
   
   const [tasks, setTasks] = useState([
     { id: 1, title: "Registrar Entrenamiento", subtitle: "Prioridad Alta", status: "pending", isPriority: true },
-    { id: 2, title: "Objetivo de ProteÃ­na", subtitle: "120g / 180g consumidos", status: "pending", isPriority: false },
+    { id: 2, title: "Objetivo de Proteina", subtitle: "120g / 180g consumidos", status: "pending", isPriority: false },
     { id: 3, title: "Subir Check-in Semanal", subtitle: "Foto de progreso requerida", status: "pending", isPriority: true },
     { id: 4, title: "Beber 3L de Agua", subtitle: "Completado", status: "completed", isPriority: false },
   ]);
@@ -170,9 +170,9 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
 
       <header>
         <h1 className="font-display text-4xl md:text-6xl font-black text-text uppercase tracking-tighter italic leading-[0.9]">
-          {isCoachView ? `PANEL DE ${clientName}` : `Â¡HOLA, ${clientName}!`} <span className="text-primary block md:inline">{isCoachView ? '' : 'A POR LA SEMANA.'}</span>
+          {isCoachView ? `PANEL DE ${clientName}` : `HOLA, ${clientName}!`} <span className="text-primary block md:inline">{isCoachView ? '' : 'A POR LA SEMANA.'}</span>
         </h1>
-        <p className="text-slate-500 mt-2 font-bold uppercase tracking-wide text-sm">Lunes, 23 Oct â€¢ DÃ­a 14 de tu programa</p>
+        <p className="text-slate-500 mt-2 font-bold uppercase tracking-wide text-sm">Lunes, 23 Oct - Dia 14 de tu programa</p>
       </header>
 
       {/* Tabs for Coach View (or Client View if desired) */}
@@ -187,7 +187,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
           onClick={() => setActiveTab('progress')}
           className={`pb-4 text-sm font-black uppercase tracking-wide flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'progress' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-text'}`}
         >
-          <LineChart size={18} /> Progreso y MÃ©tricas
+          <LineChart size={18} /> Progreso y Metricas
         </button>
       </div>
 
@@ -233,7 +233,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
                     </ResponsiveContainer>
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                       <span className="font-display text-4xl font-black text-text italic tracking-tighter">{compliancePercentage}%</span>
-                      <span className="text-xs text-slate-400 font-black uppercase tracking-widest">HÃ¡bitos</span>
+                      <span className="text-xs text-slate-400 font-black uppercase tracking-widest">Habitos</span>
                     </div>
                   </div>
                   <p className="text-sm text-slate-500 mt-2 text-center font-bold uppercase">
@@ -276,7 +276,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
               <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
                   <span className="inline-block bg-white/20 backdrop-blur-sm text-white text-[10px] font-black px-3 py-1 rounded-md uppercase tracking-widest mb-3 skew-x-[-10deg]">
-                    SesiÃ³n de Hoy
+                    Sesion de Hoy
                   </span>
                   <h3 className="font-display text-3xl md:text-5xl font-black mb-2 italic uppercase tracking-tighter">Tren Inferior: Fuerza</h3>
                   <div className="flex items-center gap-4 text-red-100 text-sm font-bold uppercase tracking-wide">
@@ -324,7 +324,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
                      </div>
                      <div>
                        <p className="text-sm font-black italic uppercase text-text">Coach Yago</p>
-                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">En lÃ­nea</p>
+                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">En linea</p>
                      </div>
                    </div>
                    <div className="bg-slate-50 p-4 rounded-xl text-sm text-slate-600 italic font-medium border-l-4 border-primary">

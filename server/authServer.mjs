@@ -127,77 +127,128 @@ function buildDefaultProfile(email, name) {
   };
 }
 
-function buildDefaultPlan() {
+function buildWeeklySchedule(spec) {
+  return spec.map((item, index) => ({
+    id: randomUUID(),
+    day: item.day,
+    title: item.title,
+    duration: item.duration,
+    exercises: item.exercises,
+    status: index === 0 ? 'completed' : index === 1 ? 'today' : 'upcoming',
+    description: item.description,
+  }));
+}
+
+function inferPlanTemplateKey(email, name) {
+  const fingerprint = `${normalizeEmail(email)} ${(name || '').toLowerCase()}`;
+
+  if (fingerprint.includes('alex')) return 'fuerza';
+  if (fingerprint.includes('maria')) return 'perdida';
+  if (fingerprint.includes('juan')) return 'cinco_x_cinco';
+  if (fingerprint.includes('laura')) return 'recomposicion';
+  if (fingerprint.includes('carlos')) return 'hipertrofia';
+  if (fingerprint.includes('ana')) return 'mantenimiento';
+
+  const templates = ['hipertrofia', 'fuerza', 'recomposicion', 'perdida'];
+  let hash = 0;
+  for (const char of normalizeEmail(email)) {
+    hash += char.charCodeAt(0);
+  }
+  return templates[hash % templates.length];
+}
+
+function buildDefaultPlan(email = '', name = '') {
+  const templateKey = inferPlanTemplateKey(email, name);
+  let monthlyGoal = 'Hipertrofia - Bloque de acumulacion';
+  let weeklySchedule = [];
+
+  if (templateKey === 'fuerza') {
+    monthlyGoal = 'Fuerza - Bloque intensivo de 4 semanas';
+    weeklySchedule = buildWeeklySchedule([
+      { day: 'Lunes', title: 'Sentadilla + Accesorios', duration: '80 min', exercises: 5, description: 'Enfoque en sentadilla pesada y estabilidad de tronco.' },
+      { day: 'Martes', title: 'Press Banca + Triceps', duration: '70 min', exercises: 5, description: 'Top set en banca y volumen de apoyo para empuje.' },
+      { day: 'Miercoles', title: 'Recuperacion Activa', duration: '30 min', exercises: 2, description: 'Movilidad, caminata y descarga de fatiga.' },
+      { day: 'Jueves', title: 'Peso Muerto + Espalda', duration: '75 min', exercises: 5, description: 'Trabajo principal en bisagra y fuerza de traccion.' },
+      { day: 'Viernes', title: 'Full Body Explosivo', duration: '60 min', exercises: 6, description: 'Potencia y velocidad de barra con volumen moderado.' },
+      { day: 'Sabado', title: 'Cardio Z2', duration: '40 min', exercises: 1, description: 'Recuperacion aerobica en zona dos.' },
+      { day: 'Domingo', title: 'Descanso Total', duration: '-', exercises: 0, description: 'Recuperacion completa.' },
+    ]);
+  } else if (templateKey === 'perdida') {
+    monthlyGoal = 'Perdida de grasa - Definicion progresiva';
+    weeklySchedule = buildWeeklySchedule([
+      { day: 'Lunes', title: 'Pierna + Core', duration: '65 min', exercises: 6, description: 'Trabajo metabolico de tren inferior y zona media.' },
+      { day: 'Martes', title: 'Empuje + HIIT corto', duration: '60 min', exercises: 6, description: 'Empuje de torso y bloque final de alta intensidad.' },
+      { day: 'Miercoles', title: 'Cardio LISS', duration: '45 min', exercises: 1, description: 'Cardio suave para aumentar gasto sin fatiga alta.' },
+      { day: 'Jueves', title: 'Traccion + Gluteo', duration: '65 min', exercises: 6, description: 'Dorsal, femoral y gluteo con enfoque tecnico.' },
+      { day: 'Viernes', title: 'Circuito Full Body', duration: '50 min', exercises: 8, description: 'Circuito por bloques para elevar densidad de trabajo.' },
+      { day: 'Sabado', title: 'Pasos + Movilidad', duration: '35 min', exercises: 2, description: 'Trabajo de actividad diaria y movilidad general.' },
+      { day: 'Domingo', title: 'Descanso Total', duration: '-', exercises: 0, description: 'Recuperacion completa.' },
+    ]);
+  } else if (templateKey === 'cinco_x_cinco') {
+    monthlyGoal = 'Fuerza base - Metodo 5x5';
+    weeklySchedule = buildWeeklySchedule([
+      { day: 'Lunes', title: '5x5 Dia A', duration: '70 min', exercises: 4, description: 'Sentadilla, banca y remos en esquema 5x5.' },
+      { day: 'Martes', title: 'Cardio suave', duration: '30 min', exercises: 1, description: 'Actividad suave y estiramientos.' },
+      { day: 'Miercoles', title: '5x5 Dia B', duration: '70 min', exercises: 4, description: 'Sentadilla, press militar y peso muerto.' },
+      { day: 'Jueves', title: 'Movilidad + Core', duration: '30 min', exercises: 3, description: 'Estabilidad lumbo-pelvica y rango articular.' },
+      { day: 'Viernes', title: '5x5 Dia A', duration: '70 min', exercises: 4, description: 'Segunda exposicion semanal al dia A.' },
+      { day: 'Sabado', title: 'Paseo activo', duration: '30 min', exercises: 1, description: 'Recuperacion activa y pasos diarios.' },
+      { day: 'Domingo', title: 'Descanso Total', duration: '-', exercises: 0, description: 'Recuperacion completa.' },
+    ]);
+  } else if (templateKey === 'recomposicion') {
+    monthlyGoal = 'Recomposicion corporal - Fuerza + condicion';
+    weeklySchedule = buildWeeklySchedule([
+      { day: 'Lunes', title: 'Pierna Fuerza', duration: '70 min', exercises: 5, description: 'Trabajo principal de fuerza en tren inferior.' },
+      { day: 'Martes', title: 'Torso Hipertrofia', duration: '65 min', exercises: 6, description: 'Volumen de torso y control tecnico.' },
+      { day: 'Miercoles', title: 'Cardio intervalico', duration: '35 min', exercises: 2, description: 'Bloques cortos de intensidad media-alta.' },
+      { day: 'Jueves', title: 'Pierna Metabolica', duration: '60 min', exercises: 6, description: 'Trabajo de densidad y tolerancia al esfuerzo.' },
+      { day: 'Viernes', title: 'Torso Fuerza', duration: '65 min', exercises: 5, description: 'Empuje-traccion pesado con descansos largos.' },
+      { day: 'Sabado', title: 'LISS + movilidad', duration: '40 min', exercises: 2, description: 'Recuperacion activa y mantenimiento de rango.' },
+      { day: 'Domingo', title: 'Descanso Total', duration: '-', exercises: 0, description: 'Recuperacion completa.' },
+    ]);
+  } else if (templateKey === 'mantenimiento') {
+    monthlyGoal = 'Mantenimiento activo - Salud y rendimiento';
+    weeklySchedule = buildWeeklySchedule([
+      { day: 'Lunes', title: 'Full Body A', duration: '55 min', exercises: 5, description: 'Sesion general de fuerza con volumen moderado.' },
+      { day: 'Martes', title: 'Cardio moderado', duration: '35 min', exercises: 1, description: 'Trabajo aerobico continuo moderado.' },
+      { day: 'Miercoles', title: 'Full Body B', duration: '55 min', exercises: 5, description: 'Sesion complementaria de fuerza y movilidad.' },
+      { day: 'Jueves', title: 'Movilidad + Core', duration: '30 min', exercises: 3, description: 'Mantenimiento articular y estabilidad central.' },
+      { day: 'Viernes', title: 'Sesion libre guiada', duration: '50 min', exercises: 4, description: 'Bloque de ejercicios segun sensaciones de la semana.' },
+      { day: 'Sabado', title: 'Actividad recreativa', duration: '40 min', exercises: 1, description: 'Actividad ligera al aire libre o similar.' },
+      { day: 'Domingo', title: 'Descanso Total', duration: '-', exercises: 0, description: 'Recuperacion completa.' },
+    ]);
+  } else {
+    monthlyGoal = 'Hipertrofia - Bloque de acumulacion';
+    weeklySchedule = buildWeeklySchedule([
+      { day: 'Lunes', title: 'Pierna Hipertrofia', duration: '75 min', exercises: 6, description: 'Enfoque en cuadriceps y gemelo. Mantener RIR 2 en sentadilla.' },
+      { day: 'Martes', title: 'Empuje Fuerza', duration: '60 min', exercises: 5, description: 'Trabajo pesado de banca y militar. Descansos largos (3-5 min).' },
+      { day: 'Miercoles', title: 'Descanso Activo', duration: '30 min', exercises: 1, description: 'Caminata ligera o movilidad.' },
+      { day: 'Jueves', title: 'Traccion Hipertrofia', duration: '70 min', exercises: 6, description: 'Foco en dorsal ancho y biceps.' },
+      { day: 'Viernes', title: 'Full Body Metabolico', duration: '50 min', exercises: 8, description: 'Circuito de alta intensidad.' },
+      { day: 'Sabado', title: 'Cardio LISS', duration: '45 min', exercises: 1, description: 'Bicicleta estatica a ritmo conversacional.' },
+      { day: 'Domingo', title: 'Descanso Total', duration: '-', exercises: 0, description: 'Recuperacion completa.' },
+    ]);
+  }
+
   return {
-    monthlyGoal: 'Hipertrofia - Bloque de acumulacion',
-    weeklySchedule: [
-      {
-        id: randomUUID(),
-        day: 'Lunes',
-        title: 'Pierna Hipertrofia',
-        duration: '75 min',
-        exercises: 6,
-        status: 'completed',
-        description: 'Enfoque en cuadriceps y gemelo. Mantener RIR 2 en sentadilla.',
-      },
-      {
-        id: randomUUID(),
-        day: 'Martes',
-        title: 'Empuje Fuerza',
-        duration: '60 min',
-        exercises: 5,
-        status: 'today',
-        description: 'Trabajo pesado de banca y militar. Descansos largos (3-5 min).',
-      },
-      {
-        id: randomUUID(),
-        day: 'Miercoles',
-        title: 'Descanso Activo',
-        duration: '30 min',
-        exercises: 1,
-        status: 'upcoming',
-        description: 'Caminata ligera o movilidad.',
-      },
-      {
-        id: randomUUID(),
-        day: 'Jueves',
-        title: 'Traccion Hipertrofia',
-        duration: '70 min',
-        exercises: 6,
-        status: 'upcoming',
-        description: 'Foco en dorsal ancho y biceps.',
-      },
-      {
-        id: randomUUID(),
-        day: 'Viernes',
-        title: 'Full Body Metabolico',
-        duration: '50 min',
-        exercises: 8,
-        status: 'upcoming',
-        description: 'Circuito de alta intensidad.',
-      },
-      {
-        id: randomUUID(),
-        day: 'Sabado',
-        title: 'Cardio LISS',
-        duration: '45 min',
-        exercises: 1,
-        status: 'upcoming',
-        description: 'Bicicleta estatica a ritmo conversacional.',
-      },
-      {
-        id: randomUUID(),
-        day: 'Domingo',
-        title: 'Descanso Total',
-        duration: '-',
-        exercises: 0,
-        status: 'upcoming',
-        description: 'Recuperacion completa.',
-      },
-    ],
+    monthlyGoal,
+    weeklySchedule,
     updatedAt: new Date().toISOString(),
     updatedBy: COACH_EMAIL,
   };
+}
+
+function isLegacyGenericPlan(plan) {
+  if (!plan || !Array.isArray(plan.weeklySchedule) || plan.weeklySchedule.length < 2) {
+    return true;
+  }
+  const first = plan.weeklySchedule[0]?.title || '';
+  const second = plan.weeklySchedule[1]?.title || '';
+  return (
+    plan.monthlyGoal === 'Hipertrofia - Bloque de acumulacion' &&
+    first === 'Pierna Hipertrofia' &&
+    second === 'Empuje Fuerza'
+  );
 }
 
 function buildDefaultStore() {
@@ -287,8 +338,9 @@ function ensureClientRecords(email, options = {}) {
     store.profiles[normalizedEmail] = buildDefaultProfile(normalizedEmail, name);
   }
 
-  if (!store.plans[normalizedEmail]) {
-    store.plans[normalizedEmail] = buildDefaultPlan();
+  const currentName = options.name || existing?.name || displayNameFromEmail(normalizedEmail);
+  if (!store.plans[normalizedEmail] || isLegacyGenericPlan(store.plans[normalizedEmail])) {
+    store.plans[normalizedEmail] = buildDefaultPlan(normalizedEmail, currentName);
   }
 
   return store.users.find((user) => user.email === normalizedEmail) || null;
