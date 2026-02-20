@@ -127,16 +127,172 @@ function buildDefaultProfile(email, name) {
   };
 }
 
-function buildWeeklySchedule(spec) {
-  return spec.map((item, index) => ({
+const weekDayLabels = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
+const defaultExercisePool = [
+  'Sentadilla Barra Trasera',
+  'Press Banca Plano',
+  'Peso Muerto Rumano',
+  'Remo con Barra',
+  'Press Militar',
+  'Dominadas',
+  'Hip Thrust',
+  'Prensa Inclinada',
+  'Curl Femoral',
+  'Plancha Frontal',
+];
+
+function toDateKey(date) {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function normalizePlanDate(value, fallbackDate = '') {
+  const raw = String(value || '').trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) {
+    return fallbackDate;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  const isValid =
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day;
+
+  if (!isValid) {
+    return fallbackDate;
+  }
+
+  return `${match[1]}-${match[2]}-${match[3]}`;
+}
+
+function getStartOfWeekLocal(baseDate = new Date()) {
+  const date = new Date(baseDate);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function getWeekDateKeys(length = 7, baseDate = new Date()) {
+  const safeLength = Math.max(1, Number(length) || 1);
+  const weekStart = getStartOfWeekLocal(baseDate);
+  return Array.from({ length: safeLength }, (_, index) => {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + index);
+    return toDateKey(date);
+  });
+}
+
+function getDayLabelFromDateKey(dateKey) {
+  const normalized = normalizePlanDate(dateKey);
+  if (!normalized) {
+    return 'Dia';
+  }
+
+  const [year, month, day] = normalized.split('-').map((value) => Number(value));
+  const date = new Date(year, month - 1, day);
+  return weekDayLabels[date.getDay()] || 'Dia';
+}
+
+function hashString(value) {
+  return String(value || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+}
+
+function buildDefaultWorkoutExercises(title, exercisesCount) {
+  const totalExercises = Math.max(0, Number(exercisesCount) || 0);
+  const normalizedTitle = String(title || '').toLowerCase();
+  if (
+    totalExercises === 0 ||
+    normalizedTitle.includes('descanso')
+  ) {
+    return [];
+  }
+
+  const count = Math.min(Math.max(totalExercises, 1), 12);
+  const offset = Math.abs(hashString(title)) % defaultExercisePool.length;
+
+  return Array.from({ length: count }, (_, index) => ({
     id: randomUUID(),
-    day: item.day,
-    title: item.title,
-    duration: item.duration,
-    exercises: item.exercises,
-    status: index === 0 ? 'completed' : index === 1 ? 'today' : 'upcoming',
-    description: item.description,
+    resourceId: '',
+    name: defaultExercisePool[(offset + index) % defaultExercisePool.length],
+    sets: index < 2 ? '4' : '3',
+    reps: index < 2 ? '6-10' : '10-15',
+    rir: '2',
   }));
+}
+
+function sanitizeWorkoutExercises(rawList, title, exercisesCount) {
+  const source = Array.isArray(rawList) ? rawList : [];
+  const sanitized = source
+    .map((item) => {
+      const name = String(item?.name || item?.title || '').trim();
+      if (!name) {
+        return null;
+      }
+
+      return {
+        id: String(item.id || randomUUID()),
+        resourceId: String(item.resourceId || '').trim(),
+        name,
+        sets: String(item.sets || item.series || '3').trim(),
+        reps: String(item.reps || item.repetitions || '8-12').trim(),
+        rir: String(item.rir || '2').trim(),
+      };
+    })
+    .filter(Boolean);
+
+  if (sanitized.length > 0) {
+    return sanitized;
+  }
+
+  return buildDefaultWorkoutExercises(title, exercisesCount);
+}
+
+function sanitizeWeeklySchedule(rawWeekly) {
+  const source = Array.isArray(rawWeekly) ? rawWeekly : [];
+  const fallbackDates = getWeekDateKeys(Math.max(source.length, 7));
+
+  return source
+    .map((item, index) => {
+      const title = String(item.title || '').trim();
+      const fallbackDate = fallbackDates[index] || fallbackDates[0];
+      const scheduledDate = normalizePlanDate(item.scheduledDate || item.date, fallbackDate);
+      const fallbackDay = getDayLabelFromDateKey(scheduledDate) || `Dia ${index + 1}`;
+      const day = String(item.day || fallbackDay).trim() || fallbackDay;
+      const exercisesCount = Math.max(0, Number(item.exercises || 0));
+      const workoutExercises = sanitizeWorkoutExercises(item.workoutExercises, title, exercisesCount);
+      const finalExercises = exercisesCount > 0 ? exercisesCount : workoutExercises.length;
+
+      return {
+        id: String(item.id || randomUUID()),
+        day,
+        title,
+        duration: String(item.duration || '').trim() || '60 min',
+        exercises: finalExercises,
+        status: ['completed', 'today', 'upcoming'].includes(String(item.status || ''))
+          ? String(item.status)
+          : index === 0
+            ? 'completed'
+            : index === 1
+              ? 'today'
+              : 'upcoming',
+        description: String(item.description || '').trim(),
+        scheduledDate,
+        workoutExercises,
+      };
+    })
+    .filter((item) => item.day && item.title);
+}
+
+function buildWeeklySchedule(spec) {
+  return sanitizeWeeklySchedule(spec);
 }
 
 function buildDefaultMonthlyPlan(templateKey, monthlyGoal) {
@@ -331,8 +487,14 @@ function buildDefaultPlan(email = '', name = '') {
 }
 
 function isLegacyGenericPlan(plan) {
-  if (!plan || !Array.isArray(plan.weeklySchedule) || plan.weeklySchedule.length < 2) {
+  if (!plan || !Array.isArray(plan.weeklySchedule) || plan.weeklySchedule.length === 0) {
     return true;
+  }
+  if (plan.source === 'CUSTOM') {
+    return false;
+  }
+  if (plan.weeklySchedule.length < 2) {
+    return false;
   }
   const first = plan.weeklySchedule[0]?.title || '';
   const second = plan.weeklySchedule[1]?.title || '';
@@ -400,6 +562,25 @@ function getIsoWeekKey(dateInput) {
   return `${tmp.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
+function normalizeStoredPlan(plan, fallbackEmail = '', fallbackName = '') {
+  const fallbackPlan = buildDefaultPlan(fallbackEmail, fallbackName);
+  if (!plan || typeof plan !== 'object') {
+    return fallbackPlan;
+  }
+
+  const monthlyGoal = String(plan.monthlyGoal || fallbackPlan.monthlyGoal || '').trim() || fallbackPlan.monthlyGoal;
+  const weeklySchedule = sanitizeWeeklySchedule(plan.weeklySchedule);
+  const monthlyPlan = sanitizeMonthlyPlan(plan.monthlyPlan, monthlyGoal);
+
+  return {
+    ...fallbackPlan,
+    ...plan,
+    monthlyGoal,
+    weeklySchedule: weeklySchedule.length > 0 ? weeklySchedule : fallbackPlan.weeklySchedule,
+    monthlyPlan: monthlyPlan.length > 0 ? monthlyPlan : fallbackPlan.monthlyPlan,
+  };
+}
+
 function ensureClientRecords(email, options = {}) {
   const normalizedEmail = normalizeEmail(email);
   if (!normalizedEmail || normalizedEmail === COACH_EMAIL) {
@@ -434,6 +615,12 @@ function ensureClientRecords(email, options = {}) {
   if (!store.plans[normalizedEmail] || isLegacyGenericPlan(store.plans[normalizedEmail])) {
     store.plans[normalizedEmail] = buildDefaultPlan(normalizedEmail, currentName);
   }
+
+  store.plans[normalizedEmail] = normalizeStoredPlan(
+    store.plans[normalizedEmail],
+    normalizedEmail,
+    currentName,
+  );
 
   if (!Array.isArray(store.plans[normalizedEmail]?.monthlyPlan) || store.plans[normalizedEmail].monthlyPlan.length === 0) {
     const templateKey = inferPlanTemplateKey(normalizedEmail, currentName);
@@ -770,25 +957,9 @@ function sanitizeProfileBody(body, fallbackEmail) {
   };
 }
 
-function sanitizePlanBody(body) {
-  const monthlyGoal = String(body.monthlyGoal || '').trim();
-  const weeklyRaw = Array.isArray(body.weeklySchedule) ? body.weeklySchedule : [];
-  const monthlyRaw = Array.isArray(body.monthlyPlan) ? body.monthlyPlan : [];
-  const weeklySchedule = weeklyRaw
-    .map((item) => ({
-      id: String(item.id || randomUUID()),
-      day: String(item.day || '').trim(),
-      title: String(item.title || '').trim(),
-      duration: String(item.duration || '').trim(),
-      exercises: Number(item.exercises || 0),
-      status: ['completed', 'today', 'upcoming'].includes(String(item.status || ''))
-        ? String(item.status)
-        : 'upcoming',
-      description: String(item.description || '').trim(),
-    }))
-    .filter((item) => item.day && item.title);
-
-  const monthlyPlan = monthlyRaw
+function sanitizeMonthlyPlan(rawMonthly, monthlyGoal) {
+  const source = Array.isArray(rawMonthly) ? rawMonthly : [];
+  const sanitized = source
     .map((item, index) => ({
       id: String(item.id || randomUUID()),
       weekLabel: String(item.weekLabel || `Semana ${index + 1}`).trim(),
@@ -800,10 +971,15 @@ function sanitizePlanBody(body) {
     }))
     .filter((item) => item.weekLabel && (item.focus || item.objective));
 
-  const normalizedMonthlyPlan =
-    monthlyPlan.length > 0
-      ? monthlyPlan
-      : buildDefaultMonthlyPlan('hipertrofia', monthlyGoal || 'Plan mensual');
+  return sanitized.length > 0
+    ? sanitized
+    : buildDefaultMonthlyPlan('hipertrofia', monthlyGoal || 'Plan mensual');
+}
+
+function sanitizePlanBody(body) {
+  const monthlyGoal = String(body.monthlyGoal || '').trim();
+  const weeklySchedule = sanitizeWeeklySchedule(body.weeklySchedule);
+  const normalizedMonthlyPlan = sanitizeMonthlyPlan(body.monthlyPlan, monthlyGoal);
 
   return {
     monthlyGoal,
