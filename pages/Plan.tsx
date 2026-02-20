@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Clock,
   Dumbbell,
@@ -16,6 +16,7 @@ import {
   Save,
   Plus,
   Trash2,
+  RefreshCw,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { UserRole } from '../types';
@@ -311,6 +312,7 @@ export const Plan: React.FC<PlanProps> = ({ currentUserRole }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingPlan, setIsSavingPlan] = useState(false);
   const [isUpdatingWorkout, setIsUpdatingWorkout] = useState(false);
+  const [isRefreshingClients, setIsRefreshingClients] = useState(false);
   const [error, setError] = useState('');
 
   const coachClientFromQuery = String(searchParams.get('client') || '').trim().toLowerCase();
@@ -324,7 +326,7 @@ export const Plan: React.FC<PlanProps> = ({ currentUserRole }) => {
     setSelectedCoachClientEmail(coachClientFromQuery);
   }, [coachClientFromQuery, isCoachMode]);
 
-  const loadCoachClients = async () => {
+  const loadCoachClients = useCallback(async () => {
     if (!isCoachMode) return;
     const token = window.localStorage.getItem(TOKEN_STORAGE_KEY) || '';
     const response = await fetch(apiUrl('/api/clients'), {
@@ -352,7 +354,22 @@ export const Plan: React.FC<PlanProps> = ({ currentUserRole }) => {
       const exists = normalizedClients.some((client) => client.email === preferredEmail);
       return exists ? preferredEmail : normalizedClients[0].email;
     });
-  };
+  }, [coachClientFromQuery, isCoachMode]);
+
+  const refreshCoachClients = useCallback(
+    async (showSpinner = false) => {
+      if (!isCoachMode) return;
+      if (showSpinner) setIsRefreshingClients(true);
+      try {
+        await loadCoachClients();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error cargando clientes');
+      } finally {
+        if (showSpinner) setIsRefreshingClients(false);
+      }
+    },
+    [isCoachMode, loadCoachClients],
+  );
 
   const loadPlan = async () => {
     if (!canLoadPlan) {
@@ -404,16 +421,39 @@ export const Plan: React.FC<PlanProps> = ({ currentUserRole }) => {
 
   useEffect(() => {
     const bootstrap = async () => {
-      try {
-        if (isCoachMode) {
-          await loadCoachClients();
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Error cargando clientes');
+      if (isCoachMode) {
+        await refreshCoachClients();
       }
     };
     bootstrap();
-  }, [isCoachMode]);
+  }, [isCoachMode, refreshCoachClients]);
+
+  useEffect(() => {
+    if (!isCoachMode) return;
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshCoachClients();
+      }
+    };
+
+    const handleFocus = () => {
+      refreshCoachClients();
+    };
+
+    const intervalId = window.setInterval(() => {
+      refreshCoachClients();
+    }, 15000);
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [isCoachMode, refreshCoachClients]);
 
   useEffect(() => {
     loadPlan();
@@ -742,18 +782,30 @@ export const Plan: React.FC<PlanProps> = ({ currentUserRole }) => {
 
         <div className="flex items-center gap-3 flex-wrap">
           {isCoachMode && (
-            <select
-              value={selectedCoachClientEmail}
-              onChange={(event) => setSelectedCoachClientEmail(event.target.value.toLowerCase())}
-              className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700"
-            >
-              {coachClients.length === 0 && <option value="">Sin clientes</option>}
-              {coachClients.map((client) => (
-                <option key={client.email} value={client.email.toLowerCase()}>
-                  {client.name} ({client.email})
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedCoachClientEmail}
+                onChange={(event) => setSelectedCoachClientEmail(event.target.value.toLowerCase())}
+                className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700"
+              >
+                {coachClients.length === 0 && <option value="">Sin clientes</option>}
+                {coachClients.map((client) => (
+                  <option key={client.email} value={client.email.toLowerCase()}>
+                    {client.name} ({client.email})
+                  </option>
+                ))}
+              </select>
+
+              <button
+                onClick={() => refreshCoachClients(true)}
+                disabled={isRefreshingClients}
+                className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 text-xs font-black uppercase tracking-wide flex items-center gap-1 disabled:opacity-60"
+                title="Recargar clientes"
+              >
+                <RefreshCw size={14} className={isRefreshingClients ? 'animate-spin' : ''} />
+                Recargar
+              </button>
+            </div>
           )}
 
           <div className="flex p-1 bg-white border border-slate-200 rounded-xl shadow-sm">
