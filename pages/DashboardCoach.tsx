@@ -1,20 +1,25 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Users, AlertCircle, TrendingUp, Search, MessageSquare, FileText } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-
-interface ReviewData {
-  id: string;
-  clientEmail: string;
-  clientName: string;
-  submittedAt: string;
-  status: 'pending' | 'completed';
-  weightKg: number;
-  adherence: number;
-}
 
 interface ClientData {
   email: string;
   name: string;
+  status: string;
+  lastCheckInAt: string | null;
+  lastReviewStatus: 'pending' | 'completed' | null;
+  pendingReviewId: string | null;
+  latestWeightKg: number | null;
+}
+
+interface CoachDashboardResponse {
+  stats: {
+    clientsCount: number;
+    pendingReviewsCount: number;
+    completedReviewsCount: number;
+    adherenceAvg: number;
+  };
+  clients: ClientData[];
 }
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
@@ -24,7 +29,12 @@ const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 export const DashboardCoach: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [clients, setClients] = useState<ClientData[]>([]);
-  const [reviews, setReviews] = useState<ReviewData[]>([]);
+  const [stats, setStats] = useState({
+    clientsCount: 0,
+    pendingReviewsCount: 0,
+    completedReviewsCount: 0,
+    adherenceAvg: 0,
+  });
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
@@ -32,20 +42,17 @@ export const DashboardCoach: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [clientsRes, reviewsRes] = await Promise.all([
-        fetch(apiUrl('/api/clients'), { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(apiUrl('/api/reviews'), { headers: { Authorization: `Bearer ${token}` } }),
-      ]);
+      const response = await fetch(apiUrl('/api/dashboard/coach'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      if (!clientsRes.ok || !reviewsRes.ok) {
+      if (!response.ok) {
         throw new Error('No se pudo cargar el panel del coach');
       }
 
-      const clientsData = (await clientsRes.json()) as { clients: ClientData[] };
-      const reviewsData = (await reviewsRes.json()) as { reviews: ReviewData[] };
-
-      setClients(clientsData.clients);
-      setReviews(reviewsData.reviews);
+      const data = (await response.json()) as CoachDashboardResponse;
+      setClients(data.clients);
+      setStats(data.stats);
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error en panel coach');
@@ -56,22 +63,10 @@ export const DashboardCoach: React.FC = () => {
     loadData();
   }, []);
 
-  const pendingByEmail = useMemo(() => {
-    const map = new Map<string, ReviewData>();
-    reviews
-      .filter((review) => review.status === 'pending')
-      .forEach((review) => {
-        if (!map.has(review.clientEmail)) {
-          map.set(review.clientEmail, review);
-        }
-      });
-    return map;
-  }, [reviews]);
-
-  const filteredClients = clients.filter((client) => client.name.toLowerCase().includes(searchTerm.toLowerCase()));
-  const pendingCount = reviews.filter((review) => review.status === 'pending').length;
-  const completedCount = reviews.filter((review) => review.status === 'completed').length;
-  const adherenceAvg = reviews.length > 0 ? Math.round(reviews.reduce((acc, r) => acc + Number(r.adherence || 0), 0) / reviews.length) : 0;
+  const filteredClients = clients.filter((client) => {
+    const term = searchTerm.toLowerCase();
+    return client.name.toLowerCase().includes(term) || client.email.toLowerCase().includes(term);
+  });
 
   return (
     <div className="space-y-8 animate-fade-in relative">
@@ -96,9 +91,9 @@ export const DashboardCoach: React.FC = () => {
       {error && <p className="text-sm text-red-600 font-bold">{error}</p>}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <MetricCard icon={AlertCircle} label="Revisiones Pendientes" value={String(pendingCount)} subValue="Requiere atencion" color="accent" />
-        <MetricCard icon={Users} label="Clientes Activos" value={String(clients.length)} subValue="Con acceso" color="primary" />
-        <MetricCard icon={TrendingUp} label="Adherencia Media" value={`${adherenceAvg}%`} subValue={`${completedCount} completadas`} color="secondary" />
+        <MetricCard icon={AlertCircle} label="Revisiones Pendientes" value={String(stats.pendingReviewsCount)} subValue="Requiere atencion" color="accent" />
+        <MetricCard icon={Users} label="Clientes Activos" value={String(stats.clientsCount)} subValue="Con acceso" color="primary" />
+        <MetricCard icon={TrendingUp} label="Adherencia Media" value={`${stats.adherenceAvg}%`} subValue={`${stats.completedReviewsCount} completadas`} color="secondary" />
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden min-h-[300px]">
@@ -120,7 +115,7 @@ export const DashboardCoach: React.FC = () => {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filteredClients.map((client) => {
-              const pendingReview = pendingByEmail.get(client.email);
+              const isPending = client.lastReviewStatus === 'pending';
               return (
                 <tr key={client.email} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-6 py-4">
@@ -133,7 +128,7 @@ export const DashboardCoach: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    {pendingReview ? (
+                    {isPending ? (
                       <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-50 text-primary">
                         <span className="w-1.5 h-1.5 rounded-full bg-primary mr-2"></span> Pendiente
                       </span>
@@ -143,13 +138,18 @@ export const DashboardCoach: React.FC = () => {
                       </span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-sm font-black text-text">{pendingReview ? `${pendingReview.weightKg} kg` : '-'}</td>
+                  <td className="px-6 py-4 text-sm font-black text-text">
+                    {typeof client.latestWeightKg === 'number' ? `${client.latestWeightKg} kg` : '-'}
+                  </td>
                   <td className="px-6 py-4 text-right">
                     <div className="inline-flex gap-2">
                       <button onClick={() => navigate('/reviews')} className="px-3 py-2 rounded-lg bg-primary text-white text-xs font-black uppercase tracking-wide flex items-center gap-1">
                         <FileText size={14} /> Revisar
                       </button>
-                      <button onClick={() => navigate('/messages')} className="px-3 py-2 rounded-lg border border-slate-200 text-slate-600 text-xs font-black uppercase tracking-wide flex items-center gap-1">
+                      <button
+                        onClick={() => navigate(`/messages?client=${encodeURIComponent(client.email)}`)}
+                        className="px-3 py-2 rounded-lg border border-slate-200 text-slate-600 text-xs font-black uppercase tracking-wide flex items-center gap-1"
+                      >
                         <MessageSquare size={14} /> Mensaje
                       </button>
                     </div>

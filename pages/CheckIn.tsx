@@ -5,6 +5,23 @@ const TOKEN_STORAGE_KEY = 'karra_auth_token';
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
+interface CheckInStatusResponse {
+  pendingReviews: number;
+  latestReview: {
+    id: string;
+    status: 'pending' | 'completed';
+    submittedAt: string;
+    reviewedAt: string | null;
+  } | null;
+  latestFeedback: {
+    feedback: string;
+    reviewedAt: string | null;
+    reviewId: string;
+  } | null;
+  canSubmitWeeklyCheckIn: boolean;
+  nextEligibleAt: string | null;
+}
+
 export const CheckIn: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [weightKg, setWeightKg] = useState('');
@@ -15,24 +32,26 @@ export const CheckIn: React.FC = () => {
   const [comments, setComments] = useState('');
   const [latestFeedback, setLatestFeedback] = useState('');
   const [pendingReviews, setPendingReviews] = useState(0);
+  const [canSubmitThisWeek, setCanSubmitThisWeek] = useState(true);
+  const [nextEligibleAt, setNextEligibleAt] = useState<string | null>(null);
+  const [latestReviewStatus, setLatestReviewStatus] = useState<'pending' | 'completed' | null>(null);
+  const [latestReviewDate, setLatestReviewDate] = useState<string | null>(null);
 
   const loadReviewStatus = async () => {
     const token = window.localStorage.getItem(TOKEN_STORAGE_KEY) || '';
-    const response = await fetch(apiUrl('/api/reviews'), {
+    const response = await fetch(apiUrl('/api/checkins/status'), {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) {
       return;
     }
-    const data = (await response.json()) as {
-      reviews: Array<{ status: 'pending' | 'completed'; feedback: string; reviewedAt: string | null }>;
-    };
-    const pending = data.reviews.filter((review) => review.status === 'pending').length;
-    const completedWithFeedback = data.reviews
-      .filter((review) => review.status === 'completed' && review.feedback)
-      .sort((a, b) => new Date(b.reviewedAt || 0).getTime() - new Date(a.reviewedAt || 0).getTime());
-    setPendingReviews(pending);
-    setLatestFeedback(completedWithFeedback[0]?.feedback || '');
+    const data = (await response.json()) as CheckInStatusResponse;
+    setPendingReviews(data.pendingReviews || 0);
+    setLatestFeedback(data.latestFeedback?.feedback || '');
+    setCanSubmitThisWeek(data.canSubmitWeeklyCheckIn);
+    setNextEligibleAt(data.nextEligibleAt);
+    setLatestReviewStatus(data.latestReview?.status || null);
+    setLatestReviewDate(data.latestReview?.submittedAt || null);
   };
 
   useEffect(() => {
@@ -43,6 +62,11 @@ export const CheckIn: React.FC = () => {
     e.preventDefault();
     if (!weightKg) {
       alert('Introduce el peso corporal');
+      return;
+    }
+
+    if (!canSubmitThisWeek) {
+      alert('Ya has enviado tu check-in esta semana. Espera al proximo ciclo semanal.');
       return;
     }
 
@@ -67,6 +91,10 @@ export const CheckIn: React.FC = () => {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({ message: 'Error al enviar check-in' }));
+        if (response.status === 409 && body.nextEligibleAt) {
+          setCanSubmitThisWeek(false);
+          setNextEligibleAt(body.nextEligibleAt);
+        }
         throw new Error(body.message || 'Error al enviar check-in');
       }
 
@@ -87,11 +115,22 @@ export const CheckIn: React.FC = () => {
         <p className="text-slate-500 mt-2 font-bold uppercase tracking-wide text-sm">Datos para revision del coach.</p>
       </header>
 
-      {(latestFeedback || pendingReviews > 0) && (
+      {(latestFeedback || pendingReviews > 0 || !canSubmitThisWeek || latestReviewStatus) && (
         <section className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+          {latestReviewStatus && latestReviewDate && (
+            <p className="text-xs font-black uppercase tracking-wider text-slate-500 mb-2">
+              Ultimo check-in enviado: {new Date(latestReviewDate).toLocaleString()} ({latestReviewStatus === 'pending' ? 'Pendiente' : 'Completado'})
+            </p>
+          )}
           {pendingReviews > 0 && (
             <p className="text-xs font-black uppercase tracking-wider text-primary mb-2">
               Tienes {pendingReviews} revision(es) pendiente(s) de validar por el coach.
+            </p>
+          )}
+          {!canSubmitThisWeek && (
+            <p className="text-xs font-black uppercase tracking-wider text-orange-600 mb-2">
+              Ya registraste tu check-in semanal. Proximo envio disponible:{' '}
+              {nextEligibleAt ? new Date(nextEligibleAt).toLocaleString() : 'la semana que viene'}.
             </p>
           )}
           {latestFeedback && (
@@ -171,10 +210,10 @@ export const CheckIn: React.FC = () => {
 
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || !canSubmitThisWeek}
           className="w-full py-5 bg-primary text-white rounded-2xl font-black italic text-xl uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary/90 transition-transform active:scale-[0.99] flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-wait"
         >
-          {isSubmitting ? 'ENVIANDO...' : 'ENVIAR CHECK-IN'}
+          {isSubmitting ? 'ENVIANDO...' : canSubmitThisWeek ? 'ENVIAR CHECK-IN' : 'CHECK-IN YA ENVIADO ESTA SEMANA'}
           {!isSubmitting && <Save size={24} />}
         </button>
       </form>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ArrowRight, Clock, AlertTriangle, X, MessageSquare, Send, Image } from 'lucide-react';
 
 interface ReviewItemData {
@@ -135,9 +135,9 @@ export const Reviews: React.FC = () => {
               </div>
 
               <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-                <button onClick={() => alert('Adjuntar recurso pendiente')} className="text-slate-400 hover:text-primary transition-colors flex items-center gap-1 text-xs font-bold uppercase">
-                  <Image size={16} /> Adjuntar recurso
-                </button>
+                <span className="text-slate-400 flex items-center gap-1 text-xs font-bold uppercase">
+                  <Image size={16} /> Recursos en biblioteca
+                </span>
                 <div className="flex gap-3">
                   <button onClick={() => setSelectedReview(null)} className="px-4 py-2 text-slate-500 font-bold text-sm hover:bg-slate-50 rounded-lg transition-colors uppercase">Cancelar</button>
                   <button onClick={handleSendFeedback} className="px-6 py-2 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-colors flex items-center gap-2 uppercase tracking-wide">
@@ -181,7 +181,7 @@ export const Reviews: React.FC = () => {
                   <h4 className="font-bold text-text text-base uppercase">{review.clientName}</h4>
                   <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
                     <span>{review.clientEmail}</span>
-                    <span>�</span>
+                    <span>•</span>
                     <span className="flex items-center gap-1"><Clock size={12} /> {formatRelative(review.submittedAt)}</span>
                   </div>
                 </div>
@@ -225,3 +225,4 @@ const MetricRow = ({ label, value }: { label: string; value: string }) => (
     <span className="font-display font-black text-lg text-text">{value}</span>
   </div>
 );
+

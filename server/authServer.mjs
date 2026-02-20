@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { createHmac, randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,6 +8,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 const distDir = path.join(projectRoot, 'dist');
+const dataDir = path.join(__dirname, 'data');
+const dataPath = path.join(dataDir, 'store.json');
 
 const PORT = Number(process.env.PORT || 8787);
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
@@ -15,14 +17,63 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-in-production';
 const COACH_EMAIL = 'carlotaloopezcarracedo@gmail.com';
 const COACH_PASSWORD = '123456';
 const CLIENT_CREDENTIALS = process.env.CLIENT_CREDENTIALS || '';
+const ALLOW_OPEN_CLIENT_LOGIN = (process.env.ALLOW_OPEN_CLIENT_LOGIN || 'true').toLowerCase() === 'true';
+
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
 
 const sessions = new Map();
-const messagesStore = new Map();
-const reviewsStore = [];
+let persistQueue = Promise.resolve();
+let store = null;
+
+const contentTypes = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+const sampleLibraryResources = [
+  {
+    id: randomUUID(),
+    title: 'Sentadilla Barra Trasera',
+    category: 'Pierna',
+    muscle: 'Cuadriceps',
+    description: 'Ejercicio compuesto para desarrollo global de tren inferior.',
+    videoUrl: '',
+    createdAt: new Date().toISOString(),
+    createdBy: COACH_EMAIL,
+  },
+  {
+    id: randomUUID(),
+    title: 'Press Banca Plano',
+    category: 'Empuje',
+    muscle: 'Pectoral',
+    description: 'Patron principal de empuje horizontal para fuerza e hipertrofia.',
+    videoUrl: '',
+    createdAt: new Date().toISOString(),
+    createdBy: COACH_EMAIL,
+  },
+  {
+    id: randomUUID(),
+    title: 'Peso Muerto Rumano',
+    category: 'Pierna',
+    muscle: 'Isquios',
+    description: 'Dominante de cadera para cadena posterior y control lumbar.',
+    videoUrl: '',
+    createdAt: new Date().toISOString(),
+    createdBy: COACH_EMAIL,
+  },
+];
 
 function parseClientCredentials(rawValue) {
   return rawValue
@@ -43,11 +94,7 @@ function parseClientCredentials(rawValue) {
     }, new Map());
 }
 
-const clientCredentialsMap = parseClientCredentials(CLIENT_CREDENTIALS);
-
-function conversationKey(emailA, emailB) {
-  return [emailA.toLowerCase(), emailB.toLowerCase()].sort().join('|');
-}
+const envClientCredentials = parseClientCredentials(CLIENT_CREDENTIALS);
 
 function displayNameFromEmail(email) {
   const localPart = (email.split('@')[0] || '').trim();
@@ -59,25 +106,270 @@ function displayNameFromEmail(email) {
     .join(' ');
 }
 
-function ensureClientExists(email) {
-  if (!clientCredentialsMap.has(email)) {
-    clientCredentialsMap.set(email, '');
-  }
+function buildDefaultProfile(email, name) {
+  const normalizedEmail = email.toLowerCase();
+  const fallbackName = name || displayNameFromEmail(normalizedEmail);
+  const [firstName = fallbackName, ...lastNameParts] = fallbackName.split(' ').filter(Boolean);
+  const lastName = lastNameParts.join(' ');
+
+  return {
+    firstName,
+    lastName,
+    email: normalizedEmail,
+    phone: '+34 600 000 000',
+    birthDate: '1995-05-20',
+    heightCm: 182,
+    startWeightKg: 90.2,
+    currentWeightKg: 83.5,
+    bio: 'Objetivo activo en curso.',
+    injuries: [],
+    avatarUrl: `https://picsum.photos/seed/${encodeURIComponent(normalizedEmail)}/150`,
+  };
 }
 
-const contentTypes = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'application/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.ico': 'image/x-icon',
-  '.woff': 'font/woff',
-  '.woff2': 'font/woff2',
-};
+function buildDefaultPlan() {
+  return {
+    monthlyGoal: 'Hipertrofia - Bloque de acumulacion',
+    weeklySchedule: [
+      {
+        id: randomUUID(),
+        day: 'Lunes',
+        title: 'Pierna Hipertrofia',
+        duration: '75 min',
+        exercises: 6,
+        status: 'completed',
+        description: 'Enfoque en cuadriceps y gemelo. Mantener RIR 2 en sentadilla.',
+      },
+      {
+        id: randomUUID(),
+        day: 'Martes',
+        title: 'Empuje Fuerza',
+        duration: '60 min',
+        exercises: 5,
+        status: 'today',
+        description: 'Trabajo pesado de banca y militar. Descansos largos (3-5 min).',
+      },
+      {
+        id: randomUUID(),
+        day: 'Miercoles',
+        title: 'Descanso Activo',
+        duration: '30 min',
+        exercises: 1,
+        status: 'upcoming',
+        description: 'Caminata ligera o movilidad.',
+      },
+      {
+        id: randomUUID(),
+        day: 'Jueves',
+        title: 'Traccion Hipertrofia',
+        duration: '70 min',
+        exercises: 6,
+        status: 'upcoming',
+        description: 'Foco en dorsal ancho y biceps.',
+      },
+      {
+        id: randomUUID(),
+        day: 'Viernes',
+        title: 'Full Body Metabolico',
+        duration: '50 min',
+        exercises: 8,
+        status: 'upcoming',
+        description: 'Circuito de alta intensidad.',
+      },
+      {
+        id: randomUUID(),
+        day: 'Sabado',
+        title: 'Cardio LISS',
+        duration: '45 min',
+        exercises: 1,
+        status: 'upcoming',
+        description: 'Bicicleta estatica a ritmo conversacional.',
+      },
+      {
+        id: randomUUID(),
+        day: 'Domingo',
+        title: 'Descanso Total',
+        duration: '-',
+        exercises: 0,
+        status: 'upcoming',
+        description: 'Recuperacion completa.',
+      },
+    ],
+    updatedAt: new Date().toISOString(),
+    updatedBy: COACH_EMAIL,
+  };
+}
+
+function buildDefaultStore() {
+  return {
+    users: [
+      {
+        email: COACH_EMAIL,
+        password: COACH_PASSWORD,
+        role: 'COACH',
+        name: 'Carlota',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      },
+    ],
+    profiles: {},
+    plans: {},
+    resources: [...sampleLibraryResources],
+    messages: [],
+    reviews: [],
+    notifications: [],
+  };
+}
+
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function isIsoDate(value) {
+  if (!value) return false;
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime());
+}
+
+function getConversationKey(emailA, emailB) {
+  return [normalizeEmail(emailA), normalizeEmail(emailB)].sort().join('|');
+}
+
+function getStartOfIsoWeek(date) {
+  const value = new Date(date);
+  const day = value.getUTCDay() || 7;
+  value.setUTCHours(0, 0, 0, 0);
+  value.setUTCDate(value.getUTCDate() - day + 1);
+  return value;
+}
+
+function getIsoWeekKey(dateInput) {
+  const date = new Date(dateInput);
+  const tmp = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const dayNumber = tmp.getUTCDay() || 7;
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNumber);
+  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((tmp - yearStart) / 86400000 + 1) / 7);
+  return `${tmp.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+function ensureClientRecords(email, options = {}) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail || normalizedEmail === COACH_EMAIL) {
+    return null;
+  }
+
+  const existing = store.users.find((user) => user.email === normalizedEmail);
+  if (!existing) {
+    store.users.push({
+      email: normalizedEmail,
+      password: String(options.password || ''),
+      role: 'CLIENT',
+      name: options.name || displayNameFromEmail(normalizedEmail),
+      status: 'active',
+      createdAt: nowIso(),
+    });
+  } else {
+    if (options.password && !existing.password) {
+      existing.password = String(options.password);
+    }
+    if (options.name) {
+      existing.name = options.name;
+    }
+  }
+
+  if (!store.profiles[normalizedEmail]) {
+    const name = options.name || existing?.name;
+    store.profiles[normalizedEmail] = buildDefaultProfile(normalizedEmail, name);
+  }
+
+  if (!store.plans[normalizedEmail]) {
+    store.plans[normalizedEmail] = buildDefaultPlan();
+  }
+
+  return store.users.find((user) => user.email === normalizedEmail) || null;
+}
+
+function ensureStoreConsistency() {
+  const coachUser = store.users.find((user) => user.email === COACH_EMAIL);
+  if (!coachUser) {
+    store.users.unshift({
+      email: COACH_EMAIL,
+      password: COACH_PASSWORD,
+      role: 'COACH',
+      name: 'Carlota',
+      status: 'active',
+      createdAt: nowIso(),
+    });
+  } else {
+    coachUser.role = 'COACH';
+    coachUser.password = coachUser.password || COACH_PASSWORD;
+    coachUser.name = coachUser.name || 'Carlota';
+    coachUser.status = coachUser.status || 'active';
+  }
+
+  envClientCredentials.forEach((password, email) => {
+    ensureClientRecords(email, { password });
+  });
+
+  if (!store.resources || !Array.isArray(store.resources) || store.resources.length === 0) {
+    store.resources = [...sampleLibraryResources];
+  }
+
+  if (!store.messages || !Array.isArray(store.messages)) {
+    store.messages = [];
+  }
+
+  if (!store.reviews || !Array.isArray(store.reviews)) {
+    store.reviews = [];
+  }
+
+  if (!store.notifications || !Array.isArray(store.notifications)) {
+    store.notifications = [];
+  }
+
+  if (!store.profiles || typeof store.profiles !== 'object') {
+    store.profiles = {};
+  }
+
+  if (!store.plans || typeof store.plans !== 'object') {
+    store.plans = {};
+  }
+
+  store.users
+    .filter((user) => user.role === 'CLIENT')
+    .forEach((user) => {
+      ensureClientRecords(user.email, { name: user.name, password: user.password });
+    });
+}
+
+async function loadStore() {
+  try {
+    const raw = await readFile(dataPath, 'utf-8');
+    store = JSON.parse(raw);
+  } catch {
+    store = buildDefaultStore();
+  }
+  ensureStoreConsistency();
+  await persistStore();
+}
+
+async function persistStore() {
+  const snapshot = JSON.stringify(store, null, 2);
+  persistQueue = persistQueue
+    .then(async () => {
+      await mkdir(dataDir, { recursive: true });
+      await writeFile(dataPath, snapshot, 'utf-8');
+    })
+    .catch((error) => {
+      console.error('Error persisting store:', error);
+    });
+  return persistQueue;
+}
 
 function getCorsHeaders(req) {
   const requestOrigin = req.headers.origin || '';
@@ -89,7 +381,7 @@ function getCorsHeaders(req) {
 
   return {
     'Access-Control-Allow-Origin': allowOrigin,
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type,Authorization',
     Vary: 'Origin',
   };
@@ -155,7 +447,6 @@ async function parseJsonBody(req) {
 
   for await (const chunk of req) {
     body += chunk;
-
     if (body.length > 1_000_000) {
       throw new Error('Body too large');
     }
@@ -168,17 +459,186 @@ async function parseJsonBody(req) {
   return JSON.parse(body);
 }
 
-function buildUserFromEmail(email) {
-  const normalizedEmail = email.toLowerCase();
-  const role = normalizedEmail === COACH_EMAIL ? 'COACH' : 'CLIENT';
+function getClientUser(email) {
+  const normalizedEmail = normalizeEmail(email);
+  const user = store.users.find((item) => item.email === normalizedEmail && item.role === 'CLIENT');
+  return user || null;
+}
+
+function getUserForLogin(email) {
+  const normalizedEmail = normalizeEmail(email);
+  return store.users.find((item) => item.email === normalizedEmail) || null;
+}
+
+function sanitizeReviewPayload(payload) {
+  const weightKg = Number(payload.weightKg || 0);
+  const energy = Number(payload.energy || 0);
+  const sleep = Number(payload.sleep || 0);
+  const stress = Number(payload.stress || 0);
+  const adherence = Number(payload.adherence || 0);
+  const comments = String(payload.comments || '').trim();
+
+  return { weightKg, energy, sleep, stress, adherence, comments };
+}
+
+function buildReviewSummaryForClient(email) {
+  const reviews = store.reviews
+    .filter((review) => review.clientEmail === normalizeEmail(email))
+    .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+
+  const pendingReviews = reviews.filter((review) => review.status === 'pending').length;
+  const latestReview = reviews[0] || null;
+  const latestFeedbackReview = reviews.find((review) => review.status === 'completed' && review.feedback) || null;
+  const currentWeekKey = getIsoWeekKey(new Date());
+  const alreadySubmittedThisWeek = reviews.some((review) => review.weekKey === currentWeekKey);
+
+  const nextWeekDate = getStartOfIsoWeek(new Date());
+  nextWeekDate.setUTCDate(nextWeekDate.getUTCDate() + 7);
+
   return {
+    pendingReviews,
+    latestReview,
+    latestFeedback: latestFeedbackReview
+      ? {
+          feedback: latestFeedbackReview.feedback,
+          reviewedAt: latestFeedbackReview.reviewedAt,
+          reviewId: latestFeedbackReview.id,
+        }
+      : null,
+    canSubmitWeeklyCheckIn: !alreadySubmittedThisWeek,
+    nextEligibleAt: alreadySubmittedThisWeek ? nextWeekDate.toISOString() : null,
+  };
+}
+
+function pushNotification(notification) {
+  store.notifications.unshift({
+    id: randomUUID(),
+    createdAt: nowIso(),
+    readAt: null,
+    ...notification,
+  });
+}
+
+function summarizeCoachDashboard() {
+  const clients = store.users.filter((user) => user.role === 'CLIENT');
+  const reviewsSorted = [...store.reviews].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+  const pendingReviews = reviewsSorted.filter((review) => review.status === 'pending');
+  const completedReviews = reviewsSorted.filter((review) => review.status === 'completed');
+  const adherenceAvg =
+    reviewsSorted.length > 0
+      ? Math.round(reviewsSorted.reduce((acc, review) => acc + Number(review.adherence || 0), 0) / reviewsSorted.length)
+      : 0;
+
+  const clientsWithSummary = clients.map((client) => {
+    const clientReviews = reviewsSorted.filter((review) => review.clientEmail === client.email);
+    const latestReview = clientReviews[0] || null;
+    const pending = clientReviews.find((review) => review.status === 'pending') || null;
+    return {
+      email: client.email,
+      name: client.name || displayNameFromEmail(client.email),
+      status: client.status || 'active',
+      lastCheckInAt: latestReview?.submittedAt || null,
+      lastReviewStatus: latestReview?.status || null,
+      pendingReviewId: pending?.id || null,
+      latestWeightKg: latestReview?.weightKg || null,
+    };
+  });
+
+  return {
+    stats: {
+      clientsCount: clients.length,
+      pendingReviewsCount: pendingReviews.length,
+      completedReviewsCount: completedReviews.length,
+      adherenceAvg,
+    },
+    clients: clientsWithSummary,
+  };
+}
+
+function getClientListForCoach() {
+  const dashboard = summarizeCoachDashboard();
+  return dashboard.clients;
+}
+
+function requireAuth(req, res) {
+  const session = readSession(req);
+  if (!session) {
+    json(req, res, 401, { message: 'No autenticado' });
+    return null;
+  }
+  return session;
+}
+
+function requireCoach(req, res) {
+  const session = requireAuth(req, res);
+  if (!session) {
+    return null;
+  }
+  if (session.user.role !== 'COACH') {
+    json(req, res, 403, { message: 'Solo coach' });
+    return null;
+  }
+  return session;
+}
+
+function sanitizeProfileBody(body, fallbackEmail) {
+  const normalizedEmail = normalizeEmail(body.email || fallbackEmail);
+  const injuries = Array.isArray(body.injuries)
+    ? body.injuries.map((value) => String(value || '').trim()).filter(Boolean)
+    : [];
+
+  return {
+    firstName: String(body.firstName || '').trim(),
+    lastName: String(body.lastName || '').trim(),
     email: normalizedEmail,
-    role,
+    phone: String(body.phone || '').trim(),
+    birthDate: isIsoDate(body.birthDate) ? String(body.birthDate).slice(0, 10) : '',
+    heightCm: Number(body.heightCm || 0),
+    startWeightKg: Number(body.startWeightKg || 0),
+    currentWeightKg: Number(body.currentWeightKg || 0),
+    bio: String(body.bio || '').trim(),
+    injuries,
+    avatarUrl: String(body.avatarUrl || '').trim(),
+  };
+}
+
+function sanitizePlanBody(body) {
+  const monthlyGoal = String(body.monthlyGoal || '').trim();
+  const weeklyRaw = Array.isArray(body.weeklySchedule) ? body.weeklySchedule : [];
+  const weeklySchedule = weeklyRaw
+    .map((item) => ({
+      id: String(item.id || randomUUID()),
+      day: String(item.day || '').trim(),
+      title: String(item.title || '').trim(),
+      duration: String(item.duration || '').trim(),
+      exercises: Number(item.exercises || 0),
+      status: ['completed', 'today', 'upcoming'].includes(String(item.status || ''))
+        ? String(item.status)
+        : 'upcoming',
+      description: String(item.description || '').trim(),
+    }))
+    .filter((item) => item.day && item.title);
+
+  return {
+    monthlyGoal,
+    weeklySchedule,
+  };
+}
+
+function sanitizeResourceBody(body) {
+  return {
+    title: String(body.title || '').trim(),
+    category: String(body.category || '').trim(),
+    muscle: String(body.muscle || '').trim(),
+    description: String(body.description || '').trim(),
+    videoUrl: String(body.videoUrl || '').trim(),
   };
 }
 
 async function handleApi(req, res, requestUrl) {
+  await loadPromise;
   const pathname = requestUrl.pathname;
+
   if (req.method === 'OPTIONS') {
     res.writeHead(204, getCorsHeaders(req));
     res.end();
@@ -187,14 +647,13 @@ async function handleApi(req, res, requestUrl) {
 
   if (pathname === '/api/login' && req.method === 'POST') {
     let body;
-
     try {
       body = await parseJsonBody(req);
     } catch {
       return json(req, res, 400, { message: 'Solicitud invalida' });
     }
 
-    const email = String(body.email || '').trim().toLowerCase();
+    const email = normalizeEmail(body.email);
     const password = String(body.password || '');
 
     if (!email || !password || !email.includes('@')) {
@@ -205,93 +664,76 @@ async function handleApi(req, res, requestUrl) {
       return json(req, res, 401, { message: 'Credenciales incorrectas' });
     }
 
-    // If CLIENT_CREDENTIALS is configured, only listed client users can log in.
-    if (email !== COACH_EMAIL && clientCredentialsMap.size > 0) {
-      const expectedPassword = clientCredentialsMap.get(email);
-      if (!expectedPassword || expectedPassword !== password) {
+    if (email !== COACH_EMAIL) {
+      const existingUser = getClientUser(email);
+      const envPassword = envClientCredentials.get(email);
+
+      if (existingUser) {
+        if (existingUser.password && existingUser.password !== password) {
+          return json(req, res, 401, { message: 'Credenciales incorrectas' });
+        }
+        if (!existingUser.password) {
+          existingUser.password = password;
+        }
+      } else if (envPassword) {
+        if (envPassword !== password) {
+          return json(req, res, 401, { message: 'Credenciales incorrectas' });
+        }
+        ensureClientRecords(email, { password: envPassword });
+      } else if (ALLOW_OPEN_CLIENT_LOGIN && envClientCredentials.size === 0) {
+        ensureClientRecords(email, { password });
+      } else {
         return json(req, res, 401, { message: 'Credenciales incorrectas' });
       }
     }
 
-    const user = buildUserFromEmail(email);
+    const userRecord = getUserForLogin(email);
+    if (!userRecord) {
+      return json(req, res, 401, { message: 'Credenciales incorrectas' });
+    }
+
+    const user = {
+      email: userRecord.email,
+      role: userRecord.role,
+    };
+
     const token = createAuthToken();
     const [tokenId] = token.split('.');
-
     sessions.set(tokenId, {
       user,
       expiresAt: Date.now() + SESSION_TTL_MS,
     });
 
+    await persistStore();
     return json(req, res, 200, { user, token });
   }
 
   if (pathname === '/api/session' && req.method === 'GET') {
     const session = readSession(req);
-
     if (!session) {
       return json(req, res, 401, { message: 'No autenticado' });
     }
-
     return json(req, res, 200, { user: session.user });
   }
 
   if (pathname === '/api/logout' && req.method === 'POST') {
     const session = readSession(req);
-
     if (session) {
       sessions.delete(session.tokenId);
     }
-
     return json(req, res, 200, { success: true });
   }
 
   if (pathname === '/api/clients' && req.method === 'GET') {
-    const session = readSession(req);
-    if (!session) {
-      return json(req, res, 401, { message: 'No autenticado' });
-    }
-    if (session.user.role !== 'COACH') {
-      return json(req, res, 403, { message: 'Solo coach' });
-    }
-
-    const fromConfigured = Array.from(clientCredentialsMap.keys());
-    const fromSessions = Array.from(sessions.values())
-      .map((item) => item.user)
-      .filter((user) => user.role === 'CLIENT')
-      .map((user) => user.email);
-    const uniqueEmails = Array.from(new Set([...fromConfigured, ...fromSessions]));
-    const clients = uniqueEmails.map((email) => ({
-      email,
-      name: displayNameFromEmail(email),
-    }));
+    const session = requireCoach(req, res);
+    if (!session) return;
+    const clients = getClientListForCoach();
     return json(req, res, 200, { clients });
   }
 
-  if (pathname === '/api/messages' && req.method === 'GET') {
-    const session = readSession(req);
-    if (!session) {
-      return json(req, res, 401, { message: 'No autenticado' });
-    }
-
-    const partnerEmail =
-      session.user.role === 'COACH'
-        ? String(requestUrl.searchParams.get('with') || '').trim().toLowerCase()
-        : COACH_EMAIL;
-
-    if (!partnerEmail || !partnerEmail.includes('@')) {
-      return json(req, res, 400, { message: 'Falta parametro "with"' });
-    }
-
-    const key = conversationKey(session.user.email, partnerEmail);
-    const messages = messagesStore.get(key) || [];
-    return json(req, res, 200, { messages });
-  }
-
-  if (pathname === '/api/messages' && req.method === 'POST') {
-    const session = readSession(req);
-    if (!session) {
-      return json(req, res, 401, { message: 'No autenticado' });
-    }
+  if (pathname === '/api/clients' && req.method === 'POST') {
+    const session = requireCoach(req, res);
+    if (!session) return;
 
     let body;
     try {
@@ -300,8 +742,64 @@ async function handleApi(req, res, requestUrl) {
       return json(req, res, 400, { message: 'Solicitud invalida' });
     }
 
-    const toEmail = String(body.toEmail || '').trim().toLowerCase();
+    const email = normalizeEmail(body.email);
+    const password = String(body.password || '').trim();
+    const name = String(body.name || '').trim();
+
+    if (!email || !email.includes('@') || !password) {
+      return json(req, res, 400, { message: 'Email y password son obligatorios' });
+    }
+
+    if (getUserForLogin(email)) {
+      return json(req, res, 409, { message: 'Ya existe un usuario con ese correo' });
+    }
+
+    ensureClientRecords(email, { password, name });
+    await persistStore();
+
+    const client = getClientListForCoach().find((item) => item.email === email);
+    return json(req, res, 201, { client });
+  }
+
+  if (pathname === '/api/messages' && req.method === 'GET') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+
+    const partnerEmail =
+      session.user.role === 'COACH'
+        ? normalizeEmail(requestUrl.searchParams.get('with'))
+        : COACH_EMAIL;
+
+    if (!partnerEmail || !partnerEmail.includes('@')) {
+      return json(req, res, 400, { message: 'Falta parametro "with"' });
+    }
+
+    if (session.user.role === 'COACH' && !getClientUser(partnerEmail)) {
+      return json(req, res, 404, { message: 'Cliente no encontrado' });
+    }
+
+    const key = getConversationKey(session.user.email, partnerEmail);
+    const messages = store.messages
+      .filter((message) => message.conversationKey === key)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    return json(req, res, 200, { messages });
+  }
+
+  if (pathname === '/api/messages' && req.method === 'POST') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+
+    let body;
+    try {
+      body = await parseJsonBody(req);
+    } catch {
+      return json(req, res, 400, { message: 'Solicitud invalida' });
+    }
+
+    const toEmail = normalizeEmail(body.toEmail);
     const text = String(body.text || '').trim();
+
     if (!toEmail || !text) {
       return json(req, res, 400, { message: 'toEmail y text son obligatorios' });
     }
@@ -310,29 +808,32 @@ async function handleApi(req, res, requestUrl) {
       return json(req, res, 403, { message: 'Un cliente solo puede escribir al coach' });
     }
 
-    if (session.user.role === 'COACH' && toEmail === COACH_EMAIL) {
-      return json(req, res, 403, { message: 'Destino invalido' });
+    if (session.user.role === 'COACH') {
+      if (toEmail === COACH_EMAIL) {
+        return json(req, res, 403, { message: 'Destino invalido' });
+      }
+      if (!getClientUser(toEmail)) {
+        return json(req, res, 404, { message: 'Cliente no encontrado' });
+      }
     }
 
-    const key = conversationKey(session.user.email, toEmail);
-    const previous = messagesStore.get(key) || [];
     const message = {
       id: randomUUID(),
+      conversationKey: getConversationKey(session.user.email, toEmail),
       senderEmail: session.user.email,
       senderRole: session.user.role,
       text,
-      createdAt: new Date().toISOString(),
+      createdAt: nowIso(),
     };
-    const updated = [...previous, message];
-    messagesStore.set(key, updated);
+
+    store.messages.push(message);
+    await persistStore();
     return json(req, res, 201, { message });
   }
 
   if (pathname === '/api/checkins' && req.method === 'POST') {
-    const session = readSession(req);
-    if (!session) {
-      return json(req, res, 401, { message: 'No autenticado' });
-    }
+    const session = requireAuth(req, res);
+    if (!session) return;
     if (session.user.role !== 'CLIENT') {
       return json(req, res, 403, { message: 'Solo clientes' });
     }
@@ -344,55 +845,102 @@ async function handleApi(req, res, requestUrl) {
       return json(req, res, 400, { message: 'Solicitud invalida' });
     }
 
+    const payload = sanitizeReviewPayload(body);
+    if (
+      payload.weightKg <= 0 ||
+      payload.energy < 1 ||
+      payload.energy > 10 ||
+      payload.sleep < 1 ||
+      payload.sleep > 10 ||
+      payload.stress < 1 ||
+      payload.stress > 10 ||
+      payload.adherence < 1 ||
+      payload.adherence > 10
+    ) {
+      return json(req, res, 400, { message: 'Faltan datos validos del check-in' });
+    }
+
+    const submittedAt = nowIso();
+    const weekKey = getIsoWeekKey(submittedAt);
+    const alreadyExists = store.reviews.some(
+      (review) => review.clientEmail === session.user.email && review.weekKey === weekKey,
+    );
+
+    if (alreadyExists) {
+      const nextWeekDate = getStartOfIsoWeek(new Date());
+      nextWeekDate.setUTCDate(nextWeekDate.getUTCDate() + 7);
+      return json(req, res, 409, {
+        message: 'Ya has enviado tu check-in esta semana. Podras enviar uno nuevo la proxima semana.',
+        nextEligibleAt: nextWeekDate.toISOString(),
+      });
+    }
+
+    ensureClientRecords(session.user.email);
+    const clientProfile = store.profiles[session.user.email];
+    if (clientProfile) {
+      clientProfile.currentWeightKg = payload.weightKg;
+    }
+
+    const clientUser = getClientUser(session.user.email);
     const review = {
       id: randomUUID(),
+      weekKey,
       clientEmail: session.user.email,
-      clientName: displayNameFromEmail(session.user.email),
-      submittedAt: new Date().toISOString(),
+      clientName: clientUser?.name || displayNameFromEmail(session.user.email),
+      submittedAt,
       status: 'pending',
-      weightKg: Number(body.weightKg || 0),
-      energy: Number(body.energy || 0),
-      sleep: Number(body.sleep || 0),
-      stress: Number(body.stress || 0),
-      adherence: Number(body.adherence || 0),
-      comments: String(body.comments || '').trim(),
+      weightKg: payload.weightKg,
+      energy: payload.energy,
+      sleep: payload.sleep,
+      stress: payload.stress,
+      adherence: payload.adherence,
+      comments: payload.comments,
       feedback: '',
       reviewedAt: null,
       reviewedBy: null,
     };
 
-    if (!review.weightKg || review.energy < 1 || review.sleep < 1 || review.stress < 1 || review.adherence < 1) {
-      return json(req, res, 400, { message: 'Faltan datos del check-in' });
-    }
-
-    reviewsStore.unshift(review);
-    ensureClientExists(session.user.email);
+    store.reviews.unshift(review);
+    pushNotification({
+      recipientType: 'COACH',
+      recipientEmail: COACH_EMAIL,
+      type: 'checkin_submitted',
+      title: 'Nuevo check-in pendiente',
+      message: `${review.clientName} ha enviado su check-in semanal.`,
+      referenceId: review.id,
+    });
+    await persistStore();
     return json(req, res, 201, { review });
   }
 
+  if (pathname === '/api/checkins/status' && req.method === 'GET') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+    if (session.user.role !== 'CLIENT') {
+      return json(req, res, 403, { message: 'Solo clientes' });
+    }
+
+    const summary = buildReviewSummaryForClient(session.user.email);
+    return json(req, res, 200, summary);
+  }
+
   if (pathname === '/api/reviews' && req.method === 'GET') {
-    const session = readSession(req);
-    if (!session) {
-      return json(req, res, 401, { message: 'No autenticado' });
-    }
+    const session = requireAuth(req, res);
+    if (!session) return;
 
-    if (session.user.role === 'COACH') {
-      return json(req, res, 200, { reviews: reviewsStore });
-    }
+    const reviews =
+      session.user.role === 'COACH'
+        ? [...store.reviews]
+        : store.reviews.filter((review) => review.clientEmail === session.user.email);
 
-    const ownReviews = reviewsStore.filter((review) => review.clientEmail === session.user.email);
-    return json(req, res, 200, { reviews: ownReviews });
+    reviews.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+    return json(req, res, 200, { reviews });
   }
 
   const reviewFeedbackMatch = pathname.match(/^\/api\/reviews\/([^/]+)\/feedback$/);
   if (reviewFeedbackMatch && req.method === 'POST') {
-    const session = readSession(req);
-    if (!session) {
-      return json(req, res, 401, { message: 'No autenticado' });
-    }
-    if (session.user.role !== 'COACH') {
-      return json(req, res, 403, { message: 'Solo coach' });
-    }
+    const session = requireCoach(req, res);
+    if (!session) return;
 
     let body;
     try {
@@ -407,17 +955,371 @@ async function handleApi(req, res, requestUrl) {
     }
 
     const reviewId = reviewFeedbackMatch[1];
-    const targetReview = reviewsStore.find((review) => review.id === reviewId);
+    const targetReview = store.reviews.find((review) => review.id === reviewId);
     if (!targetReview) {
       return json(req, res, 404, { message: 'Revision no encontrada' });
     }
 
     targetReview.feedback = feedback;
     targetReview.status = 'completed';
-    targetReview.reviewedAt = new Date().toISOString();
+    targetReview.reviewedAt = nowIso();
     targetReview.reviewedBy = session.user.email;
 
+    pushNotification({
+      recipientType: 'CLIENT',
+      recipientEmail: targetReview.clientEmail,
+      type: 'feedback_ready',
+      title: 'Feedback disponible',
+      message: 'Tu coach ha revisado tu check-in semanal.',
+      referenceId: targetReview.id,
+    });
+
+    await persistStore();
     return json(req, res, 200, { review: targetReview });
+  }
+
+  if (pathname === '/api/notifications' && req.method === 'GET') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+
+    const notifications = store.notifications
+      .filter((notification) => {
+        if (session.user.role === 'COACH') {
+          return notification.recipientType === 'COACH';
+        }
+        return (
+          notification.recipientType === 'CLIENT' &&
+          normalizeEmail(notification.recipientEmail) === session.user.email
+        );
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return json(req, res, 200, { notifications });
+  }
+
+  const notificationReadMatch = pathname.match(/^\/api\/notifications\/([^/]+)\/read$/);
+  if (notificationReadMatch && req.method === 'POST') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+    const notificationId = notificationReadMatch[1];
+    const notification = store.notifications.find((item) => item.id === notificationId);
+
+    if (!notification) {
+      return json(req, res, 404, { message: 'Notificacion no encontrada' });
+    }
+
+    if (session.user.role === 'COACH' && notification.recipientType !== 'COACH') {
+      return json(req, res, 403, { message: 'No autorizado' });
+    }
+
+    if (
+      session.user.role === 'CLIENT' &&
+      (notification.recipientType !== 'CLIENT' ||
+        normalizeEmail(notification.recipientEmail) !== session.user.email)
+    ) {
+      return json(req, res, 403, { message: 'No autorizado' });
+    }
+
+    notification.readAt = nowIso();
+    await persistStore();
+    return json(req, res, 200, { notification });
+  }
+
+  if (pathname === '/api/profile' && req.method === 'GET') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+
+    const requestedEmail = normalizeEmail(requestUrl.searchParams.get('email'));
+    const targetEmail =
+      session.user.role === 'COACH' && requestedEmail
+        ? requestedEmail
+        : session.user.email;
+
+    if (session.user.role === 'COACH' && targetEmail !== COACH_EMAIL && !getClientUser(targetEmail)) {
+      return json(req, res, 404, { message: 'Cliente no encontrado' });
+    }
+
+    if (session.user.role === 'CLIENT' && targetEmail !== session.user.email) {
+      return json(req, res, 403, { message: 'No autorizado' });
+    }
+
+    if (targetEmail === COACH_EMAIL) {
+      return json(req, res, 200, {
+        profile: buildDefaultProfile(COACH_EMAIL, 'Carlota'),
+      });
+    }
+
+    ensureClientRecords(targetEmail);
+    return json(req, res, 200, { profile: store.profiles[targetEmail] });
+  }
+
+  if (pathname === '/api/profile' && req.method === 'PUT') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+
+    let body;
+    try {
+      body = await parseJsonBody(req);
+    } catch {
+      return json(req, res, 400, { message: 'Solicitud invalida' });
+    }
+
+    const requestedEmail = normalizeEmail(requestUrl.searchParams.get('email'));
+    const targetEmail =
+      session.user.role === 'COACH' && requestedEmail
+        ? requestedEmail
+        : session.user.email;
+
+    if (session.user.role === 'CLIENT' && targetEmail !== session.user.email) {
+      return json(req, res, 403, { message: 'No autorizado' });
+    }
+
+    if (targetEmail === COACH_EMAIL) {
+      return json(req, res, 403, { message: 'Perfil de coach no editable por API' });
+    }
+
+    ensureClientRecords(targetEmail);
+    const sanitized = sanitizeProfileBody(body, targetEmail);
+    if (!sanitized.firstName || !sanitized.email) {
+      return json(req, res, 400, { message: 'Nombre y correo son obligatorios' });
+    }
+
+    store.profiles[targetEmail] = sanitized;
+    const client = getClientUser(targetEmail);
+    if (client) {
+      client.name = `${sanitized.firstName} ${sanitized.lastName}`.trim() || client.name;
+    }
+
+    await persistStore();
+    return json(req, res, 200, { profile: store.profiles[targetEmail] });
+  }
+
+  if (pathname === '/api/plan' && req.method === 'GET') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+
+    const requestedEmail = normalizeEmail(requestUrl.searchParams.get('email'));
+    const targetEmail =
+      session.user.role === 'COACH' && requestedEmail
+        ? requestedEmail
+        : session.user.email;
+
+    if (session.user.role === 'CLIENT' && targetEmail !== session.user.email) {
+      return json(req, res, 403, { message: 'No autorizado' });
+    }
+
+    if (targetEmail === COACH_EMAIL) {
+      return json(req, res, 200, { plan: buildDefaultPlan() });
+    }
+
+    ensureClientRecords(targetEmail);
+    return json(req, res, 200, { plan: store.plans[targetEmail] });
+  }
+
+  if (pathname === '/api/plan' && req.method === 'PUT') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+
+    let body;
+    try {
+      body = await parseJsonBody(req);
+    } catch {
+      return json(req, res, 400, { message: 'Solicitud invalida' });
+    }
+
+    const requestedEmail = normalizeEmail(requestUrl.searchParams.get('email'));
+    const targetEmail =
+      session.user.role === 'COACH' && requestedEmail
+        ? requestedEmail
+        : session.user.email;
+
+    if (session.user.role === 'CLIENT' && targetEmail !== session.user.email) {
+      return json(req, res, 403, { message: 'No autorizado' });
+    }
+
+    if (targetEmail === COACH_EMAIL) {
+      return json(req, res, 403, { message: 'Plan de coach no editable por API' });
+    }
+
+    ensureClientRecords(targetEmail);
+    const payload = sanitizePlanBody(body);
+    if (payload.weeklySchedule.length === 0) {
+      return json(req, res, 400, { message: 'El plan semanal no puede estar vacio' });
+    }
+
+    store.plans[targetEmail] = {
+      monthlyGoal: payload.monthlyGoal || store.plans[targetEmail]?.monthlyGoal || '',
+      weeklySchedule: payload.weeklySchedule,
+      updatedAt: nowIso(),
+      updatedBy: session.user.email,
+    };
+
+    await persistStore();
+    return json(req, res, 200, { plan: store.plans[targetEmail] });
+  }
+
+  if (pathname === '/api/plan/day-status' && req.method === 'POST') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+
+    let body;
+    try {
+      body = await parseJsonBody(req);
+    } catch {
+      return json(req, res, 400, { message: 'Solicitud invalida' });
+    }
+
+    const dayId = String(body.dayId || '').trim();
+    const status = String(body.status || '').trim();
+    if (!dayId || !['completed', 'today', 'upcoming'].includes(status)) {
+      return json(req, res, 400, { message: 'dayId y status validos son obligatorios' });
+    }
+
+    const targetEmail =
+      session.user.role === 'COACH'
+        ? normalizeEmail(body.email)
+        : session.user.email;
+
+    if (!targetEmail || targetEmail === COACH_EMAIL) {
+      return json(req, res, 400, { message: 'Cliente invalido' });
+    }
+
+    if (session.user.role === 'COACH' && !getClientUser(targetEmail)) {
+      return json(req, res, 404, { message: 'Cliente no encontrado' });
+    }
+
+    ensureClientRecords(targetEmail);
+    const plan = store.plans[targetEmail];
+    const day = plan.weeklySchedule.find((item) => item.id === dayId);
+    if (!day) {
+      return json(req, res, 404, { message: 'Dia de plan no encontrado' });
+    }
+
+    day.status = status;
+    plan.updatedAt = nowIso();
+    plan.updatedBy = session.user.email;
+    await persistStore();
+    return json(req, res, 200, { plan });
+  }
+
+  if (pathname === '/api/library' && req.method === 'GET') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+    const resources = [...store.resources].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return json(req, res, 200, { resources });
+  }
+
+  if (pathname === '/api/library' && req.method === 'POST') {
+    const session = requireCoach(req, res);
+    if (!session) return;
+
+    let body;
+    try {
+      body = await parseJsonBody(req);
+    } catch {
+      return json(req, res, 400, { message: 'Solicitud invalida' });
+    }
+
+    const payload = sanitizeResourceBody(body);
+    if (!payload.title || !payload.category || !payload.muscle) {
+      return json(req, res, 400, { message: 'Titulo, categoria y musculo son obligatorios' });
+    }
+
+    const resource = {
+      id: randomUUID(),
+      ...payload,
+      createdAt: nowIso(),
+      createdBy: session.user.email,
+    };
+
+    store.resources.unshift(resource);
+    await persistStore();
+    return json(req, res, 201, { resource });
+  }
+
+  if (pathname === '/api/dashboard/coach' && req.method === 'GET') {
+    const session = requireCoach(req, res);
+    if (!session) return;
+    const dashboard = summarizeCoachDashboard();
+    return json(req, res, 200, dashboard);
+  }
+
+  if (pathname === '/api/dashboard/client' && req.method === 'GET') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+    if (session.user.role !== 'CLIENT') {
+      return json(req, res, 403, { message: 'Solo clientes' });
+    }
+
+    ensureClientRecords(session.user.email);
+    const profile = store.profiles[session.user.email];
+    const summary = buildReviewSummaryForClient(session.user.email);
+    const reviews = store.reviews
+      .filter((review) => review.clientEmail === session.user.email)
+      .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+
+    const adherenceAvg =
+      reviews.length > 0
+        ? Math.round(reviews.reduce((acc, review) => acc + Number(review.adherence || 0), 0) / reviews.length)
+        : 0;
+
+    return json(req, res, 200, {
+      profile,
+      summary,
+      metrics: {
+        totalCheckIns: reviews.length,
+        adherenceAvg,
+        latestWeightKg: profile?.currentWeightKg || null,
+      },
+    });
+  }
+
+  if (pathname === '/api/password' && req.method === 'POST') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+
+    let body;
+    try {
+      body = await parseJsonBody(req);
+    } catch {
+      return json(req, res, 400, { message: 'Solicitud invalida' });
+    }
+
+    const currentPassword = String(body.currentPassword || '').trim();
+    const newPassword = String(body.newPassword || '').trim();
+    const confirmPassword = String(body.confirmPassword || '').trim();
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return json(req, res, 400, { message: 'Debes completar todos los campos' });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return json(req, res, 400, { message: 'La confirmacion no coincide' });
+    }
+
+    if (newPassword.length < 6) {
+      return json(req, res, 400, { message: 'La nueva contrasena debe tener al menos 6 caracteres' });
+    }
+
+    if (session.user.email === COACH_EMAIL) {
+      if (currentPassword !== COACH_PASSWORD) {
+        return json(req, res, 401, { message: 'Contrasena actual incorrecta' });
+      }
+      return json(req, res, 400, { message: 'La contrasena del coach se gestiona por entorno' });
+    }
+
+    const user = getClientUser(session.user.email);
+    if (!user) {
+      return json(req, res, 404, { message: 'Usuario no encontrado' });
+    }
+
+    if (user.password !== currentPassword) {
+      return json(req, res, 401, { message: 'Contrasena actual incorrecta' });
+    }
+
+    user.password = newPassword;
+    await persistStore();
+    return json(req, res, 200, { success: true });
   }
 
   return json(req, res, 404, { message: 'Not found' });
@@ -455,6 +1357,8 @@ async function serveStatic(res, pathname) {
     }
   }
 }
+
+const loadPromise = loadStore();
 
 const server = createServer(async (req, res) => {
   const requestUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);

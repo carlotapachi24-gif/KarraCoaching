@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { User, Bell, Lock, Save, Mail, Camera, LogOut, Shield, AlertCircle, Loader2 } from 'lucide-react';
 import { ClientProfileData } from '../types';
 
@@ -8,14 +8,20 @@ interface SettingsProps {
   userName?: string;
   userEmail?: string;
   initialProfile?: ClientProfileData;
-  onSaveProfile?: (profile: ClientProfileData) => void;
+  onSaveProfile?: (profile: ClientProfileData) => Promise<void> | void;
+  onLogout?: () => Promise<void> | void;
 }
+
+const TOKEN_STORAGE_KEY = 'karra_auth_token';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
 export const Settings: React.FC<SettingsProps> = ({
   userName = 'Cliente',
   userEmail = 'cliente@example.com',
   initialProfile,
   onSaveProfile,
+  onLogout,
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>('profile');
 
@@ -46,7 +52,7 @@ export const Settings: React.FC<SettingsProps> = ({
       case 'notifications':
         return <NotificationsSection />;
       case 'security':
-        return <SecuritySection />;
+        return <SecuritySection onLogout={onLogout} />;
       default:
         return <ProfileSection initialProfile={initialProfile || fallbackProfile} onSaveProfile={onSaveProfile} />;
     }
@@ -91,7 +97,7 @@ const ProfileSection = ({
   onSaveProfile,
 }: {
   initialProfile: ClientProfileData;
-  onSaveProfile?: (profile: ClientProfileData) => void;
+  onSaveProfile?: (profile: ClientProfileData) => Promise<void> | void;
 }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [profileForm, setProfileForm] = useState<ClientProfileData>(initialProfile);
@@ -103,13 +109,16 @@ const ProfileSection = ({
     setInjuriesText((initialProfile.injuries || []).join('\n'));
   }, [initialProfile]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
-    setTimeout(() => {
-      onSaveProfile?.(profileForm);
-      setIsSaving(false);
+    try {
+      await onSaveProfile?.(profileForm);
       alert('Cambios guardados correctamente');
-    }, 500);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'No se pudo guardar el perfil');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -259,10 +268,48 @@ const NotificationsSection = () => {
   );
 };
 
-const SecuritySection = () => {
+const SecuritySection = ({ onLogout }: { onLogout?: () => Promise<void> | void }) => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+
+  const handleChangePassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setPasswordError('');
+    setIsSubmittingPassword(true);
+
+    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+    try {
+      const response = await fetch(apiUrl('/api/password'), {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+          confirmPassword,
+        }),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({ message: 'No se pudo actualizar la contrasena' }));
+        throw new Error(body.message || 'No se pudo actualizar la contrasena');
+      }
+
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      alert('Contrasena actualizada correctamente');
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : 'No se pudo actualizar la contrasena');
+    } finally {
+      setIsSubmittingPassword(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -270,13 +317,14 @@ const SecuritySection = () => {
         <h2 className="font-display font-black italic uppercase text-xl text-text mb-6 flex items-center gap-2 tracking-tighter">
           <Shield size={20} className="text-primary" /> Contrasena y Seguridad
         </h2>
-        <form className="space-y-4 max-w-md" onSubmit={(e) => { e.preventDefault(); alert('Contrasena actualizada'); }}>
+        <form className="space-y-4 max-w-md" onSubmit={handleChangePassword}>
           <InputGroup label="Contrasena Actual" type="password" value={currentPassword} placeholder="********" onChange={setCurrentPassword} />
           <InputGroup label="Nueva Contrasena" type="password" value={newPassword} placeholder="********" onChange={setNewPassword} />
           <InputGroup label="Confirmar Nueva Contrasena" type="password" value={confirmPassword} placeholder="********" onChange={setConfirmPassword} />
+          {passwordError && <p className="text-xs text-red-600 font-bold">{passwordError}</p>}
           <div className="pt-2">
-            <button className="px-6 py-2 bg-slate-800 text-white text-xs font-black italic rounded-xl hover:bg-slate-700 transition-colors uppercase tracking-wide">
-              Actualizar Contrasena
+            <button disabled={isSubmittingPassword} className="px-6 py-2 bg-slate-800 text-white text-xs font-black italic rounded-xl hover:bg-slate-700 transition-colors uppercase tracking-wide disabled:opacity-70">
+              {isSubmittingPassword ? 'Actualizando...' : 'Actualizar Contrasena'}
             </button>
           </div>
         </form>
@@ -288,9 +336,7 @@ const SecuritySection = () => {
         <p className="text-sm text-red-600/80 mb-6 font-medium">Estas acciones afectan a tu cuenta de forma inmediata.</p>
         <div className="flex gap-4">
           <button
-            onClick={() => {
-              if (confirm('Estas seguro?')) window.location.reload();
-            }}
+            onClick={() => onLogout?.()}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 text-xs font-black italic rounded-xl hover:bg-red-50 transition-colors uppercase tracking-wide"
           >
             <LogOut size={16} /> Cerrar Sesion
@@ -354,3 +400,4 @@ const ToggleRow = ({ title, description, defaultChecked = false }: any) => {
     </div>
   );
 };
+

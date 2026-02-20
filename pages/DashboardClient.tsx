@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { 
   TrendingDown, 
   CheckCircle, 
@@ -14,6 +14,7 @@ import {
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Profile } from './Profile';
+import { ClientProfileData } from '../types';
 
 interface DashboardClientProps {
   currentClientName?: string;
@@ -27,6 +28,34 @@ interface DashboardClientProps {
   currentClientCurrentWeightKg?: number;
   currentClientInjuries?: string[];
 }
+
+interface ClientDashboardResponse {
+  summary: {
+    pendingReviews: number;
+    latestFeedback: {
+      feedback: string;
+      reviewedAt: string | null;
+      reviewId: string;
+    } | null;
+  };
+  metrics: {
+    latestWeightKg: number | null;
+  };
+}
+
+const TOKEN_STORAGE_KEY = 'karra_auth_token';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
+
+const displayNameFromEmail = (email: string) => {
+  const local = (email.split('@')[0] || '').trim();
+  if (!local) return 'Cliente';
+  return local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+};
 
 export const DashboardClient: React.FC<DashboardClientProps> = ({
   currentClientName = 'Cliente',
@@ -43,54 +72,62 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
   const navigate = useNavigate();
   const { clientId } = useParams();
   const isCoachView = !!clientId;
+  const coachClientEmail = clientId ? decodeURIComponent(clientId) : '';
   const [activeTab, setActiveTab] = useState<'overview' | 'progress'>('overview');
   const [latestFeedback, setLatestFeedback] = useState('');
   const [pendingReviews, setPendingReviews] = useState(0);
+  const [liveWeightKg, setLiveWeightKg] = useState<number | null>(currentClientCurrentWeightKg || null);
+  const [coachViewProfile, setCoachViewProfile] = useState<ClientProfileData | null>(null);
 
-  const TOKEN_STORAGE_KEY = 'karra_auth_token';
-  const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
-  const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
-
-  const getClientName = () => {
-    if (!clientId) return currentClientName;
-    switch(clientId) {
-      case '1': return "Alex";
-      case '2': return "María";
-      case '3': return "Juan";
-      default: return "Cliente";
-    }
-  };
-
-  const clientName = getClientName();
+  const clientName = isCoachView
+    ? coachViewProfile?.firstName || displayNameFromEmail(coachClientEmail)
+    : currentClientName;
 
   useEffect(() => {
-    if (isCoachView) return;
-    const loadClientReviews = async () => {
+    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+    if (!token) return;
+
+    if (isCoachView) {
+      if (!coachClientEmail) return;
+      const loadCoachProfile = async () => {
+        try {
+          const response = await fetch(apiUrl(`/api/profile?email=${encodeURIComponent(coachClientEmail)}`), {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!response.ok) return;
+          const data = (await response.json()) as { profile: ClientProfileData };
+          setCoachViewProfile(data.profile);
+          setLiveWeightKg(data.profile.currentWeightKg);
+        } catch {
+          // ignore
+        }
+      };
+      loadCoachProfile();
+      return;
+    }
+
+    const loadClientDashboard = async () => {
       try {
-        const token = window.localStorage.getItem(TOKEN_STORAGE_KEY) || '';
-        const response = await fetch(apiUrl('/api/reviews'), {
+        const response = await fetch(apiUrl('/api/dashboard/client'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!response.ok) return;
-        const data = (await response.json()) as {
-          reviews: Array<{ status: 'pending' | 'completed'; feedback: string; reviewedAt: string | null }>;
-        };
-        const pending = data.reviews.filter((review) => review.status === 'pending').length;
-        const completedWithFeedback = data.reviews
-          .filter((review) => review.status === 'completed' && review.feedback)
-          .sort((a, b) => new Date(b.reviewedAt || 0).getTime() - new Date(a.reviewedAt || 0).getTime());
-        setPendingReviews(pending);
-        setLatestFeedback(completedWithFeedback[0]?.feedback || '');
+        const data = (await response.json()) as ClientDashboardResponse;
+        setPendingReviews(data.summary.pendingReviews || 0);
+        setLatestFeedback(data.summary.latestFeedback?.feedback || '');
+        if (typeof data.metrics.latestWeightKg === 'number') {
+          setLiveWeightKg(data.metrics.latestWeightKg);
+        }
       } catch {
-        // ignore in dashboard
+        // ignore
       }
     };
-    loadClientReviews();
-  }, [isCoachView]);
+    loadClientDashboard();
+  }, [coachClientEmail, isCoachView]);
   
   const [tasks, setTasks] = useState([
     { id: 1, title: "Registrar Entrenamiento", subtitle: "Prioridad Alta", status: "pending", isPriority: true },
-    { id: 2, title: "Objetivo de Proteína", subtitle: "120g / 180g consumidos", status: "pending", isPriority: false },
+    { id: 2, title: "Objetivo de ProteÃ­na", subtitle: "120g / 180g consumidos", status: "pending", isPriority: false },
     { id: 3, title: "Subir Check-in Semanal", subtitle: "Foto de progreso requerida", status: "pending", isPriority: true },
     { id: 4, title: "Beber 3L de Agua", subtitle: "Completado", status: "completed", isPriority: false },
   ]);
@@ -133,9 +170,9 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
 
       <header>
         <h1 className="font-display text-4xl md:text-6xl font-black text-text uppercase tracking-tighter italic leading-[0.9]">
-          {isCoachView ? `PANEL DE ${clientName}` : `¡HOLA, ${clientName}!`} <span className="text-primary block md:inline">{isCoachView ? '' : 'A POR LA SEMANA.'}</span>
+          {isCoachView ? `PANEL DE ${clientName}` : `Â¡HOLA, ${clientName}!`} <span className="text-primary block md:inline">{isCoachView ? '' : 'A POR LA SEMANA.'}</span>
         </h1>
-        <p className="text-slate-500 mt-2 font-bold uppercase tracking-wide text-sm">Lunes, 23 Oct • Día 14 de tu programa</p>
+        <p className="text-slate-500 mt-2 font-bold uppercase tracking-wide text-sm">Lunes, 23 Oct â€¢ DÃ­a 14 de tu programa</p>
       </header>
 
       {/* Tabs for Coach View (or Client View if desired) */}
@@ -150,7 +187,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
           onClick={() => setActiveTab('progress')}
           className={`pb-4 text-sm font-black uppercase tracking-wide flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'progress' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-text'}`}
         >
-          <LineChart size={18} /> Progreso y Métricas
+          <LineChart size={18} /> Progreso y MÃ©tricas
         </button>
       </div>
 
@@ -196,7 +233,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
                     </ResponsiveContainer>
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                       <span className="font-display text-4xl font-black text-text italic tracking-tighter">{compliancePercentage}%</span>
-                      <span className="text-xs text-slate-400 font-black uppercase tracking-widest">Hábitos</span>
+                      <span className="text-xs text-slate-400 font-black uppercase tracking-widest">HÃ¡bitos</span>
                     </div>
                   </div>
                   <p className="text-sm text-slate-500 mt-2 text-center font-bold uppercase">
@@ -209,7 +246,9 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
                    <div>
                       <p className="text-xs text-slate-400 font-black uppercase tracking-wider mb-1">Peso Actual</p>
                       <div className="flex items-end gap-2">
-                        <span className="font-display text-6xl font-black text-text italic tracking-tighter leading-none">83.5</span>
+                        <span className="font-display text-6xl font-black text-text italic tracking-tighter leading-none">
+                          {typeof liveWeightKg === 'number' ? liveWeightKg.toFixed(1) : '--'}
+                        </span>
                         <span className="text-xl font-black text-slate-300 mb-2 italic uppercase">kg</span>
                       </div>
                    </div>
@@ -237,7 +276,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
               <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
                   <span className="inline-block bg-white/20 backdrop-blur-sm text-white text-[10px] font-black px-3 py-1 rounded-md uppercase tracking-widest mb-3 skew-x-[-10deg]">
-                    Sesión de Hoy
+                    SesiÃ³n de Hoy
                   </span>
                   <h3 className="font-display text-3xl md:text-5xl font-black mb-2 italic uppercase tracking-tighter">Tren Inferior: Fuerza</h3>
                   <div className="flex items-center gap-4 text-red-100 text-sm font-bold uppercase tracking-wide">
@@ -285,7 +324,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
                      </div>
                      <div>
                        <p className="text-sm font-black italic uppercase text-text">Coach Yago</p>
-                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">En línea</p>
+                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">En lÃ­nea</p>
                      </div>
                    </div>
                    <div className="bg-slate-50 p-4 rounded-xl text-sm text-slate-600 italic font-medium border-l-4 border-primary">
@@ -312,15 +351,15 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
         /* Progress Tab: Embeds Profile Component */
         <Profile
           isEmbedded={true}
-          clientName={clientId ? clientName : currentClientFullName}
-          clientEmail={currentClientEmail}
-          avatarUrl={currentClientAvatarUrl}
-          objectiveText={currentClientBio}
-          birthDate={currentClientBirthDate}
-          heightCm={currentClientHeightCm}
-          startWeightKg={currentClientStartWeightKg}
-          currentWeightKg={currentClientCurrentWeightKg}
-          injuries={currentClientInjuries}
+          clientName={isCoachView ? `${coachViewProfile?.firstName || clientName} ${coachViewProfile?.lastName || ''}`.trim() : currentClientFullName}
+          clientEmail={isCoachView ? coachClientEmail : currentClientEmail}
+          avatarUrl={isCoachView ? coachViewProfile?.avatarUrl : currentClientAvatarUrl}
+          objectiveText={isCoachView ? coachViewProfile?.bio : currentClientBio}
+          birthDate={isCoachView ? coachViewProfile?.birthDate : currentClientBirthDate}
+          heightCm={isCoachView ? coachViewProfile?.heightCm : currentClientHeightCm}
+          startWeightKg={isCoachView ? coachViewProfile?.startWeightKg : currentClientStartWeightKg}
+          currentWeightKg={isCoachView ? coachViewProfile?.currentWeightKg : liveWeightKg || undefined}
+          injuries={isCoachView ? coachViewProfile?.injuries : currentClientInjuries}
         />
       )}
     </div>
@@ -373,3 +412,4 @@ const TaskItem: React.FC<TaskItemProps> = ({ title, subtitle, status, isPriority
     </div>
   );
 };
+

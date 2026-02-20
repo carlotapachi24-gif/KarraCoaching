@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Send, Image, Paperclip, MoreVertical, Search, CheckCheck } from 'lucide-react';
 import { UserRole } from '../types';
+import { useSearchParams } from 'react-router-dom';
 
 interface MessagesProps {
   currentUserEmail: string;
@@ -37,6 +38,7 @@ const displayNameFromEmail = (email: string) => {
 };
 
 export const Messages: React.FC<MessagesProps> = ({ currentUserEmail, currentUserRole }) => {
+  const [searchParams] = useSearchParams();
   const [newMessage, setNewMessage] = useState('');
   const [messages, setMessages] = useState<ApiMessage[]>([]);
   const [clients, setClients] = useState<ClientOption[]>([]);
@@ -46,6 +48,10 @@ export const Messages: React.FC<MessagesProps> = ({ currentUserEmail, currentUse
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const token = window.localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+  const preferredClientEmail = useMemo(
+    () => String(searchParams.get('client') || '').trim().toLowerCase(),
+    [searchParams],
+  );
 
   const partnerEmail = useMemo(() => {
     if (currentUserRole === UserRole.COACH) {
@@ -74,7 +80,8 @@ export const Messages: React.FC<MessagesProps> = ({ currentUserEmail, currentUse
     const data = (await response.json()) as { clients: ClientOption[] };
     setClients(data.clients);
     if (!selectedClientEmail && data.clients.length > 0) {
-      setSelectedClientEmail(data.clients[0].email);
+      const preferred = data.clients.find((client) => client.email.toLowerCase() === preferredClientEmail);
+      setSelectedClientEmail(preferred?.email || data.clients[0].email);
     }
   };
 
@@ -112,7 +119,7 @@ export const Messages: React.FC<MessagesProps> = ({ currentUserEmail, currentUse
     };
 
     bootstrap();
-  }, []);
+  }, [preferredClientEmail]);
 
   useEffect(() => {
     const load = async () => {
@@ -134,8 +141,26 @@ export const Messages: React.FC<MessagesProps> = ({ currentUserEmail, currentUse
   }, [partnerEmail]);
 
   useEffect(() => {
+    if (!partnerEmail) return;
+    const id = window.setInterval(() => {
+      fetchMessages().catch(() => {});
+    }, 15000);
+    return () => window.clearInterval(id);
+  }, [partnerEmail]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    if (currentUserRole !== UserRole.COACH || !preferredClientEmail || clients.length === 0) {
+      return;
+    }
+    const match = clients.find((client) => client.email.toLowerCase() === preferredClientEmail);
+    if (match) {
+      setSelectedClientEmail(match.email);
+    }
+  }, [clients, currentUserRole, preferredClientEmail]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,13 +189,8 @@ export const Messages: React.FC<MessagesProps> = ({ currentUserEmail, currentUse
     }
   };
 
-  const handleAttachment = () => {
-    alert('Funcion de adjuntar pendiente de implementar.');
-  };
-
-  const handleMenu = () => {
-    alert('Menu de opciones pendiente de implementar.');
-  };
+  const handleAttachment = () => setError('Adjuntos no disponibles todavia.');
+  const handleMenu = () => setError('');
 
   const formatTime = (isoDate: string) => {
     const date = new Date(isoDate);

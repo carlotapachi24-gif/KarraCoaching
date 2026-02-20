@@ -25,6 +25,20 @@ Notas:
 - Si `CLIENT_CREDENTIALS` esta vacia o no existe, cualquier correo (que no sea coach) entra como cliente.
 - Si `CLIENT_CREDENTIALS` tiene datos, solo los correos listados podran entrar como cliente.
 
+## Estado actual (produccion funcional)
+
+El flujo principal ya esta conectado extremo a extremo:
+
+- Check-in semanal real: el cliente solo puede enviar 1 check-in por semana.
+- Notificacion al coach: cada check-in pendiente aparece en revisiones/notificaciones.
+- Revision y feedback del coach: el coach responde sobre cada check-in.
+- Retorno al cliente: el cliente ve estado, feedback y bloqueo semanal hasta el siguiente ciclo.
+- Datos persistentes de backend: clientes, perfiles, plan, biblioteca, mensajes, revisiones y notificaciones.
+
+El backend persiste datos en:
+
+- `server/data/store.json`
+
 ## Desarrollo local
 
 1. `npm install`

@@ -30,7 +30,6 @@ interface LoginResponse extends SessionResponse {
 }
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
-const PROFILE_STORAGE_KEY_PREFIX = 'karra_client_profile_';
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const IS_GITHUB_PAGES = window.location.hostname.endsWith('github.io');
 
@@ -63,33 +62,63 @@ function App() {
     };
   }, []);
 
-  const loadStoredProfile = useCallback(
-    (email: string): ClientProfileData => {
-      const storageKey = `${PROFILE_STORAGE_KEY_PREFIX}${email.toLowerCase()}`;
-      const raw = window.localStorage.getItem(storageKey);
-      if (!raw) {
-        return buildDefaultProfile(email);
+  const loadProfile = useCallback(
+    async (email: string) => {
+      const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+      if (!token) {
+        setClientProfile(buildDefaultProfile(email));
+        return;
       }
 
       try {
-        const parsed = JSON.parse(raw) as Partial<ClientProfileData>;
-        return {
+        const response = await fetch(apiUrl('/api/profile'), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) {
+          setClientProfile(buildDefaultProfile(email));
+          return;
+        }
+
+        const data = (await response.json()) as { profile: ClientProfileData };
+        setClientProfile({
           ...buildDefaultProfile(email),
-          ...parsed,
+          ...data.profile,
           email,
-        };
+        });
       } catch {
-        return buildDefaultProfile(email);
+        setClientProfile(buildDefaultProfile(email));
       }
     },
     [buildDefaultProfile],
   );
 
-  const saveProfile = useCallback((email: string, profile: ClientProfileData) => {
-    const storageKey = `${PROFILE_STORAGE_KEY_PREFIX}${email.toLowerCase()}`;
-    window.localStorage.setItem(storageKey, JSON.stringify(profile));
-    setClientProfile(profile);
-  }, []);
+  const saveProfile = useCallback(async (email: string, profile: ClientProfileData) => {
+    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (!token) {
+      throw new Error('Sesion expirada');
+    }
+
+    const response = await fetch(apiUrl('/api/profile'), {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(profile),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'No se pudo guardar el perfil' }));
+      throw new Error(error.message || 'No se pudo guardar el perfil');
+    }
+
+    const data = (await response.json()) as { profile: ClientProfileData };
+    setClientProfile({
+      ...buildDefaultProfile(email),
+      ...data.profile,
+      email,
+    });
+  }, [buildDefaultProfile]);
 
   const fetchSession = useCallback(async () => {
     const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
@@ -133,8 +162,8 @@ function App() {
       return;
     }
 
-    setClientProfile(loadStoredProfile(user.email));
-  }, [loadStoredProfile, user]);
+    loadProfile(user.email);
+  }, [loadProfile, user]);
 
   const handleLogin = async (email: string, password: string) => {
     if (IS_GITHUB_PAGES && !API_BASE) {
@@ -277,7 +306,7 @@ function App() {
               />
               <Route
                 path="/plan"
-                element={user.role === UserRole.CLIENT ? <Plan /> : <Navigate to="/" replace />}
+                element={<Plan currentUserRole={user.role} currentUserEmail={user.email} />}
               />
               <Route
                 path="/activities"
@@ -291,11 +320,12 @@ function App() {
                     <Settings
                       userName={userIdentity.fullName}
                       userEmail={user.email}
-                      initialProfile={clientProfile || loadStoredProfile(user.email)}
+                      initialProfile={clientProfile || buildDefaultProfile(user.email)}
                       onSaveProfile={(updated) => saveProfile(user.email, updated)}
+                      onLogout={handleLogout}
                     />
                   ) : (
-                    <Settings userName="Carlota" userEmail={user.email} />
+                    <Settings userName="Carlota" userEmail={user.email} onLogout={handleLogout} />
                   )
                 }
               />
@@ -309,7 +339,7 @@ function App() {
               />
               <Route
                 path="/library"
-                element={user.role === UserRole.COACH ? <Library /> : <Navigate to="/" replace />}
+                element={user.role === UserRole.COACH ? <Library /> : <Library readOnly />}
               />
 
               <Route

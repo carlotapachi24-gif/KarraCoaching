@@ -110,6 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, email, displayName, onLo
               <NavItem to="/profile" icon={User} label="Mi Perfil" />
               <NavItem to="/checkin" icon={ClipboardCheck} label="Check-in" />
               <NavItem to="/plan" icon={CalendarDays} label="Mi Plan" />
+              <NavItem to="/library" icon={Dumbbell} label="Biblioteca" />
               <NavItem to="/activities" icon={Activity} label="Actividades" />
             </>
           ) : (
@@ -118,6 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, email, displayName, onLo
               <NavItem to="/" icon={LayoutDashboard} label="Panel General" />
               <NavItem to="/clients" icon={Users} label="Clientes" />
               <NavItem to="/reviews" icon={ClipboardCheck} label="Revisiones" />
+              <NavItem to="/plan" icon={CalendarDays} label="Planes" />
               <NavItem to="/library" icon={Dumbbell} label="Biblioteca" />
             </>
           )}
