@@ -139,6 +139,66 @@ function buildWeeklySchedule(spec) {
   }));
 }
 
+function buildSingleClientExamplePlan() {
+  return {
+    monthlyGoal: 'Plan Ejemplo - 4 semanas (cliente activo)',
+    weeklySchedule: buildWeeklySchedule([
+      {
+        day: 'Lunes',
+        title: 'Pierna + Core (Fuerza tecnica)',
+        duration: '70 min',
+        exercises: 6,
+        description: 'Sentadilla, bisagra de cadera y bloque final de core anti-rotacion.',
+      },
+      {
+        day: 'Martes',
+        title: 'Empuje torso (Hipertrofia)',
+        duration: '65 min',
+        exercises: 6,
+        description: 'Press banca, press inclinado y accesorios de hombro-triceps.',
+      },
+      {
+        day: 'Miercoles',
+        title: 'Cardio Z2 + Movilidad',
+        duration: '40 min',
+        exercises: 2,
+        description: 'Cardio continuo suave y rutina de movilidad global.',
+      },
+      {
+        day: 'Jueves',
+        title: 'Traccion + Gluteo',
+        duration: '70 min',
+        exercises: 6,
+        description: 'Dominadas/remos y bloque accesorio de gluteo-femoral.',
+      },
+      {
+        day: 'Viernes',
+        title: 'Full Body metabolico',
+        duration: '55 min',
+        exercises: 8,
+        description: 'Circuitos por estaciones con enfasis en densidad de trabajo.',
+      },
+      {
+        day: 'Sabado',
+        title: 'Actividad libre guiada',
+        duration: '35 min',
+        exercises: 2,
+        description: 'Pasos, movilidad y respiracion para recuperacion activa.',
+      },
+      {
+        day: 'Domingo',
+        title: 'Descanso total',
+        duration: '-',
+        exercises: 0,
+        description: 'Recuperacion completa y preparacion de la siguiente semana.',
+      },
+    ]),
+    source: 'AUTO_TEMPLATE',
+    updatedAt: new Date().toISOString(),
+    updatedBy: COACH_EMAIL,
+  };
+}
+
 function inferPlanTemplateKey(email, name) {
   const fingerprint = `${normalizeEmail(email)} ${(name || '').toLowerCase()}`;
 
@@ -233,6 +293,7 @@ function buildDefaultPlan(email = '', name = '') {
   return {
     monthlyGoal,
     weeklySchedule,
+    source: 'AUTO_TEMPLATE',
     updatedAt: new Date().toISOString(),
     updatedBy: COACH_EMAIL,
   };
@@ -343,6 +404,14 @@ function ensureClientRecords(email, options = {}) {
     store.plans[normalizedEmail] = buildDefaultPlan(normalizedEmail, currentName);
   }
 
+  const clientUsers = store.users.filter((user) => user.role === 'CLIENT');
+  if (clientUsers.length === 1) {
+    const currentPlan = store.plans[normalizedEmail];
+    if (currentPlan?.source !== 'CUSTOM') {
+      store.plans[normalizedEmail] = buildSingleClientExamplePlan();
+    }
+  }
+
   return store.users.find((user) => user.email === normalizedEmail) || null;
 }
 
@@ -397,6 +466,16 @@ function ensureStoreConsistency() {
     .forEach((user) => {
       ensureClientRecords(user.email, { name: user.name, password: user.password });
     });
+
+  const clientUsers = store.users.filter((user) => user.role === 'CLIENT');
+  if (clientUsers.length === 1) {
+    const uniqueClient = clientUsers[0];
+    const currentPlan = store.plans[uniqueClient.email];
+    const isCustomPlan = currentPlan?.source === 'CUSTOM';
+    if (!isCustomPlan) {
+      store.plans[uniqueClient.email] = buildSingleClientExamplePlan();
+    }
+  }
 }
 
 async function loadStore() {
@@ -1202,6 +1281,7 @@ async function handleApi(req, res, requestUrl) {
     store.plans[targetEmail] = {
       monthlyGoal: payload.monthlyGoal || store.plans[targetEmail]?.monthlyGoal || '',
       weeklySchedule: payload.weeklySchedule,
+      source: 'CUSTOM',
       updatedAt: nowIso(),
       updatedBy: session.user.email,
     };
