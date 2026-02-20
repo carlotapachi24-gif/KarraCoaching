@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Users, AlertCircle, TrendingUp, Search, MessageSquare, FileText } from 'lucide-react';
+import { Users, AlertCircle, TrendingUp, Search, MessageSquare, FileText, CalendarDays } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 interface ClientData {
@@ -151,6 +151,12 @@ export const DashboardCoach: React.FC = () => {
                         className="px-3 py-2 rounded-lg border border-slate-200 text-slate-600 text-xs font-black uppercase tracking-wide flex items-center gap-1"
                       >
                         <MessageSquare size={14} /> Mensaje
+                      </button>
+                      <button
+                        onClick={() => navigate(`/plan?client=${encodeURIComponent(client.email)}`)}
+                        className="px-3 py-2 rounded-lg border border-slate-200 text-slate-600 text-xs font-black uppercase tracking-wide flex items-center gap-1"
+                      >
+                        <CalendarDays size={14} /> Plan
                       </button>
                     </div>
                   </td>

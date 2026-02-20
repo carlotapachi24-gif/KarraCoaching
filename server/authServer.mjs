@@ -139,9 +139,30 @@ function buildWeeklySchedule(spec) {
   }));
 }
 
+function buildDefaultMonthlyPlan(templateKey, monthlyGoal) {
+  const baseFocus = {
+    fuerza: ['Base tecnica', 'Intensificacion', 'Sobrecarga controlada', 'Descarga activa'],
+    perdida: ['Deficit inicial', 'Densidad de entrenamiento', 'Consolidacion', 'Ajuste y descarga'],
+    cinco_x_cinco: ['Ajuste de cargas', 'Progresion lineal', 'Consolidacion tecnica', 'Deload'],
+    recomposicion: ['Base de volumen', 'Incremento de intensidad', 'Densidad metabolica', 'Descarga'],
+    mantenimiento: ['Mantenimiento de fuerza', 'Capacidad aerobica', 'Movilidad y control', 'Semana ligera'],
+    hipertrofia: ['Acumulacion de volumen', 'Intensificacion progresiva', 'Sobrecarga selectiva', 'Descarga'],
+  };
+
+  const phases = baseFocus[templateKey] || baseFocus.hipertrofia;
+  return phases.map((focus, index) => ({
+    id: randomUUID(),
+    weekLabel: `Semana ${index + 1}`,
+    focus,
+    objective: monthlyGoal,
+    status: index === 1 ? 'current' : index === 0 ? 'completed' : 'upcoming',
+  }));
+}
+
 function buildSingleClientExamplePlan() {
+  const monthlyGoal = 'Plan Ejemplo - 4 semanas (cliente activo)';
   return {
-    monthlyGoal: 'Plan Ejemplo - 4 semanas (cliente activo)',
+    monthlyGoal,
     weeklySchedule: buildWeeklySchedule([
       {
         day: 'Lunes',
@@ -193,6 +214,12 @@ function buildSingleClientExamplePlan() {
         description: 'Recuperacion completa y preparacion de la siguiente semana.',
       },
     ]),
+    monthlyPlan: [
+      { id: randomUUID(), weekLabel: 'Semana 1', focus: 'Base tecnica', objective: monthlyGoal, status: 'completed' },
+      { id: randomUUID(), weekLabel: 'Semana 2', focus: 'Progresion de cargas', objective: monthlyGoal, status: 'current' },
+      { id: randomUUID(), weekLabel: 'Semana 3', focus: 'Densidad y calidad', objective: monthlyGoal, status: 'upcoming' },
+      { id: randomUUID(), weekLabel: 'Semana 4', focus: 'Ajuste y descarga', objective: monthlyGoal, status: 'upcoming' },
+    ],
     source: 'AUTO_TEMPLATE',
     updatedAt: new Date().toISOString(),
     updatedBy: COACH_EMAIL,
@@ -221,6 +248,7 @@ function buildDefaultPlan(email = '', name = '') {
   const templateKey = inferPlanTemplateKey(email, name);
   let monthlyGoal = 'Hipertrofia - Bloque de acumulacion';
   let weeklySchedule = [];
+  let monthlyPlan = [];
 
   if (templateKey === 'fuerza') {
     monthlyGoal = 'Fuerza - Bloque intensivo de 4 semanas';
@@ -290,9 +318,12 @@ function buildDefaultPlan(email = '', name = '') {
     ]);
   }
 
+  monthlyPlan = buildDefaultMonthlyPlan(templateKey, monthlyGoal);
+
   return {
     monthlyGoal,
     weeklySchedule,
+    monthlyPlan,
     source: 'AUTO_TEMPLATE',
     updatedAt: new Date().toISOString(),
     updatedBy: COACH_EMAIL,
@@ -402,6 +433,12 @@ function ensureClientRecords(email, options = {}) {
   const currentName = options.name || existing?.name || displayNameFromEmail(normalizedEmail);
   if (!store.plans[normalizedEmail] || isLegacyGenericPlan(store.plans[normalizedEmail])) {
     store.plans[normalizedEmail] = buildDefaultPlan(normalizedEmail, currentName);
+  }
+
+  if (!Array.isArray(store.plans[normalizedEmail]?.monthlyPlan) || store.plans[normalizedEmail].monthlyPlan.length === 0) {
+    const templateKey = inferPlanTemplateKey(normalizedEmail, currentName);
+    const monthlyGoal = store.plans[normalizedEmail]?.monthlyGoal || 'Plan mensual';
+    store.plans[normalizedEmail].monthlyPlan = buildDefaultMonthlyPlan(templateKey, monthlyGoal);
   }
 
   const clientUsers = store.users.filter((user) => user.role === 'CLIENT');
@@ -736,6 +773,7 @@ function sanitizeProfileBody(body, fallbackEmail) {
 function sanitizePlanBody(body) {
   const monthlyGoal = String(body.monthlyGoal || '').trim();
   const weeklyRaw = Array.isArray(body.weeklySchedule) ? body.weeklySchedule : [];
+  const monthlyRaw = Array.isArray(body.monthlyPlan) ? body.monthlyPlan : [];
   const weeklySchedule = weeklyRaw
     .map((item) => ({
       id: String(item.id || randomUUID()),
@@ -750,9 +788,27 @@ function sanitizePlanBody(body) {
     }))
     .filter((item) => item.day && item.title);
 
+  const monthlyPlan = monthlyRaw
+    .map((item, index) => ({
+      id: String(item.id || randomUUID()),
+      weekLabel: String(item.weekLabel || `Semana ${index + 1}`).trim(),
+      focus: String(item.focus || '').trim(),
+      objective: String(item.objective || monthlyGoal || '').trim(),
+      status: ['completed', 'current', 'upcoming'].includes(String(item.status || ''))
+        ? String(item.status)
+        : 'upcoming',
+    }))
+    .filter((item) => item.weekLabel && (item.focus || item.objective));
+
+  const normalizedMonthlyPlan =
+    monthlyPlan.length > 0
+      ? monthlyPlan
+      : buildDefaultMonthlyPlan('hipertrofia', monthlyGoal || 'Plan mensual');
+
   return {
     monthlyGoal,
     weeklySchedule,
+    monthlyPlan: normalizedMonthlyPlan,
   };
 }
 
@@ -1281,6 +1337,7 @@ async function handleApi(req, res, requestUrl) {
     store.plans[targetEmail] = {
       monthlyGoal: payload.monthlyGoal || store.plans[targetEmail]?.monthlyGoal || '',
       weeklySchedule: payload.weeklySchedule,
+      monthlyPlan: payload.monthlyPlan,
       source: 'CUSTOM',
       updatedAt: nowIso(),
       updatedBy: session.user.email,
