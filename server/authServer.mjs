@@ -42,38 +42,107 @@ const contentTypes = {
   '.woff2': 'font/woff2',
 };
 
-const sampleLibraryResources = [
-  {
-    id: randomUUID(),
-    title: 'Sentadilla Barra Trasera',
-    category: 'Pierna',
-    muscle: 'Cuadriceps',
-    description: 'Ejercicio compuesto para desarrollo global de tren inferior.',
-    videoUrl: '',
-    createdAt: new Date().toISOString(),
-    createdBy: COACH_EMAIL,
-  },
-  {
-    id: randomUUID(),
-    title: 'Press Banca Plano',
-    category: 'Empuje',
-    muscle: 'Pectoral',
-    description: 'Patron principal de empuje horizontal para fuerza e hipertrofia.',
-    videoUrl: '',
-    createdAt: new Date().toISOString(),
-    createdBy: COACH_EMAIL,
-  },
-  {
-    id: randomUUID(),
-    title: 'Peso Muerto Rumano',
-    category: 'Pierna',
-    muscle: 'Isquios',
-    description: 'Dominante de cadera para cadena posterior y control lumbar.',
-    videoUrl: '',
-    createdAt: new Date().toISOString(),
-    createdBy: COACH_EMAIL,
-  },
+const librarySeedCatalog = [
+  { title: 'Press banca plano', category: 'Empuje', muscle: 'Pecho', description: 'Escapulas retraidas, pies firmes y barra al pecho medio con recorrido controlado.' },
+  { title: 'Press banca inclinado', category: 'Empuje', muscle: 'Pecho superior', description: 'Banco entre 30 y 45 grados, hombros abajo y codos estables durante todo el gesto.' },
+  { title: 'Flexiones', category: 'Empuje', muscle: 'Pecho', description: 'Cuerpo en bloque, abdomen activo y pecho cerca del suelo sin colapsar lumbares.' },
+  { title: 'Fondos en paralelas', category: 'Empuje', muscle: 'Pecho', description: 'Ligera inclinacion del torso, hombros estables y bajada solo hasta rango sin dolor.' },
+  { title: 'Aperturas con mancuernas', category: 'Empuje', muscle: 'Pecho', description: 'Codos semiflexionados, arco amplio y controlando la fase negativa sin rebotes.' },
+  { title: 'Cruce de poleas', category: 'Empuje', muscle: 'Pecho', description: 'Pecho alto, escpulas estables y cruce al frente con control constante de tension.' },
+  { title: 'Pullover con mancuerna', category: 'Empuje', muscle: 'Pecho', description: 'Mantener costillas controladas, codos suaves y recorrido limpio desde hombros.' },
+
+  { title: 'Dominadas pronas', category: 'Tiron', muscle: 'Dorsal', description: 'Iniciar desde escapulas, subir pecho a la barra y evitar balanceos.' },
+  { title: 'Dominadas supinas', category: 'Tiron', muscle: 'Dorsal y biceps', description: 'Agarre supino al ancho de hombros y subida estable sin impulso de piernas.' },
+  { title: 'Dominadas neutras', category: 'Tiron', muscle: 'Dorsal', description: 'Agarre neutro, tronco firme y descenso completo con control en cada repeticion.' },
+  { title: 'Jalon al pecho', category: 'Tiron', muscle: 'Dorsal', description: 'Bajar al pecho alto, codos hacia abajo y sin tirar de la zona lumbar.' },
+  { title: 'Remo', category: 'Tiron', muscle: 'Espalda media', description: 'Espalda neutra, tiron hacia cadera y escpulas juntas al final del recorrido.' },
+  { title: 'Peso muerto', category: 'Cadena posterior', muscle: 'Espalda y gluteo', description: 'Barra pegada al cuerpo, bisagra de cadera y tronco firme desde el inicio.' },
+  { title: 'Peso muerto sumo', category: 'Cadena posterior', muscle: 'Gluteo y aductores', description: 'Pies abiertos, rodillas alineadas con puntas y pecho alto durante el levantamiento.' },
+  { title: 'Peso muerto rumano', category: 'Cadena posterior', muscle: 'Isquios y gluteo', description: 'Cadera atras, rodillas suaves y barra cercana al muslo sin perder neutralidad.' },
+  { title: 'Hip thrust', category: 'Cadena posterior', muscle: 'Gluteo', description: 'Menton recogido, pelvis neutra y extension completa de cadera sin hiperextender espalda.' },
+
+  { title: 'Sentadilla', category: 'Pierna', muscle: 'Cuadriceps', description: 'Pies firmes, rodillas siguiendo puntas y profundidad segun movilidad sin perder tecnica.' },
+  { title: 'Prensa horizontal', category: 'Pierna', muscle: 'Cuadriceps', description: 'Lumbar pegada al respaldo, bajada controlada y empuje completo sin bloquear rodillas.' },
+  { title: 'V-Squat', category: 'Pierna', muscle: 'Cuadriceps', description: 'Torso estable, recorrido consistente y peso distribuido en toda la planta del pie.' },
+  { title: 'Hack squat', category: 'Pierna', muscle: 'Cuadriceps', description: 'Bajada profunda controlada, rodillas alineadas y subida continua sin rebote.' },
+  { title: 'Zancadas caminando', category: 'Pierna', muscle: 'Cuadriceps y gluteo', description: 'Paso largo estable, tronco recto y control de la rodilla delantera.' },
+  { title: 'Bulgaras', category: 'Pierna', muscle: 'Cuadriceps y gluteo', description: 'Pie trasero apoyado, cadera cuadrada y descenso vertical sin perder equilibrio.' },
+  { title: 'Extension de cuadriceps', category: 'Pierna', muscle: 'Cuadriceps', description: 'Controlar subida y bajada, evitar impulso y mantener alineacion de rodilla.' },
+  { title: 'Curl femoral', category: 'Pierna', muscle: 'Isquios', description: 'Cadera estable, talones hacia gluteos y descenso lento para mantener tension.' },
+  { title: 'Puente de gluteo', category: 'Pierna', muscle: 'Gluteo', description: 'Empuje desde talones, abdomen activo y pausa arriba sin arquear la espalda.' },
+  { title: 'Elevacion de talones', category: 'Pierna', muscle: 'Gemelos', description: 'Subida completa en puntas, pausa corta arriba y bajada lenta y controlada.' },
+
+  { title: 'Press militar', category: 'Empuje', muscle: 'Hombro', description: 'Gluteos y abdomen activos, barra en linea recta y bloqueo estable sobre cabeza.' },
+  { title: 'Push press', category: 'Empuje', muscle: 'Hombro', description: 'Pequena flexion de rodillas, transferir fuerza y finalizar con control overhead.' },
+  { title: 'Elevaciones laterales', category: 'Empuje', muscle: 'Deltoide lateral', description: 'Brazos semiflexionados, elevar hasta linea de hombro sin balancear tronco.' },
+  { title: 'Pajaros con mancuerna', category: 'Tiron', muscle: 'Deltoide posterior', description: 'Cadera en bisagra, cuello neutro y apertura lateral sin impulso.' },
+  { title: 'Face pull', category: 'Tiron', muscle: 'Deltoide posterior', description: 'Tirar hacia la cara, codos altos y escpulas activas en cada repeticion.' },
+
+  { title: 'Curl con barra', category: 'Tiron', muscle: 'Biceps', description: 'Codos pegados al torso, subida limpia y bajar sin perder tension.' },
+  { title: 'Curl martillo', category: 'Tiron', muscle: 'Biceps y braquial', description: 'Agarre neutro, munecas firmes y codos estables durante todo el rango.' },
+  { title: 'Curl concentrado', category: 'Tiron', muscle: 'Biceps', description: 'Brazo apoyado, recorrido completo y foco en contraccion al final.' },
+  { title: 'Fondos', category: 'Empuje', muscle: 'Triceps', description: 'Torso mas vertical, codos atras y rango seguro segun movilidad de hombro.' },
+  { title: 'Extension en polea', category: 'Empuje', muscle: 'Triceps', description: 'Codos fijos al costado, extension completa y retorno controlado.' },
+  { title: 'Extension por encima de la cabeza', category: 'Empuje', muscle: 'Triceps', description: 'Brazos cerca de orejas, abdomen activo y recorrido completo sin arquear lumbar.' },
+  { title: 'Press frances', category: 'Empuje', muscle: 'Triceps', description: 'Bajar controlado hacia frente, codos estables y subir sin abrirlos en exceso.' },
+
+  { title: 'Plancha frontal', category: 'Core', muscle: 'Core', description: 'Linea recta cabeza-cadera-talones, abdomen firme y respiracion controlada.' },
+  { title: 'Dead bug', category: 'Core', muscle: 'Core', description: 'Zona lumbar estable, mover brazos y piernas alternos sin perder control.' },
+  { title: 'Ab wheel', category: 'Core', muscle: 'Core', description: 'Iniciar corto, gluteos activos y evitar hundir la zona lumbar.' },
+  { title: 'Pallof press', category: 'Core', muscle: 'Oblicuos', description: 'Resistir rotacion, brazos extendidos y pelvis estable durante la ejecucion.' },
+  { title: 'Plancha lateral', category: 'Core', muscle: 'Oblicuos', description: 'Cuerpo alineado, cadera alta y apoyo firme en antebrazo y pies.' },
+  { title: 'Crunch', category: 'Core', muscle: 'Recto abdominal', description: 'Elevar torax con control, sin tirar del cuello y exhalando al subir.' },
+  { title: 'Elevaciones de piernas', category: 'Core', muscle: 'Abdominal inferior', description: 'Lumbar pegada, subir piernas sin impulso y bajar lentamente.' },
+  { title: 'Toes to bar', category: 'Core', muscle: 'Core', description: 'Iniciar con balance minimo, elevar piernas activando abdomen y controlar bajada.' },
 ];
+
+function buildSeedLibraryResources() {
+  const createdAt = new Date().toISOString();
+  return librarySeedCatalog.map((item) => ({
+    id: randomUUID(),
+    title: item.title,
+    category: item.category,
+    muscle: item.muscle,
+    description: item.description,
+    videoUrl: '',
+    createdAt,
+    createdBy: COACH_EMAIL,
+  }));
+}
+
+function normalizeResourceKey(title) {
+  return String(title || '').trim().toLowerCase();
+}
+
+function mergeLibrarySeedResources(existingResources) {
+  const safeResources = Array.isArray(existingResources) ? [...existingResources] : [];
+  const existingKeys = new Set(
+    safeResources
+      .map((resource) => normalizeResourceKey(resource?.title))
+      .filter(Boolean),
+  );
+
+  for (const seed of librarySeedCatalog) {
+    const key = normalizeResourceKey(seed.title);
+    if (!key || existingKeys.has(key)) {
+      continue;
+    }
+
+    safeResources.push({
+      id: randomUUID(),
+      title: seed.title,
+      category: seed.category,
+      muscle: seed.muscle,
+      description: seed.description,
+      videoUrl: '',
+      createdAt: nowIso(),
+      createdBy: COACH_EMAIL,
+    });
+    existingKeys.add(key);
+  }
+
+  return safeResources;
+}
 
 function parseClientCredentials(rawValue) {
   return rawValue
@@ -519,7 +588,7 @@ function buildDefaultStore() {
     ],
     profiles: {},
     plans: {},
-    resources: [...sampleLibraryResources],
+    resources: buildSeedLibraryResources(),
     messages: [],
     reviews: [],
     notifications: [],
@@ -661,9 +730,7 @@ function ensureStoreConsistency() {
     ensureClientRecords(email, { password });
   });
 
-  if (!store.resources || !Array.isArray(store.resources) || store.resources.length === 0) {
-    store.resources = [...sampleLibraryResources];
-  }
+  store.resources = mergeLibrarySeedResources(store.resources);
 
   if (!store.messages || !Array.isArray(store.messages)) {
     store.messages = [];
