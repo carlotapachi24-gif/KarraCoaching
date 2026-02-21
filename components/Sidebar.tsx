@@ -81,11 +81,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, email, displayName, onLo
         className={`fixed top-0 left-0 h-full w-64 bg-slate-50 border-r border-slate-200 z-50 transition-transform duration-300 transform
           ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 md:static flex flex-col`}
       >
-        <div className="p-8 hidden md:flex items-center justify-center">
+        <div className="px-6 pt-5 pb-1 hidden md:flex items-center justify-center">
           <img
             src={logoSrc}
             alt="Lopez Coaching"
-            className="h-[168px] w-auto object-contain"
+            className="h-16 w-auto object-contain"
             onError={(e) => {
               e.currentTarget.style.display = 'none';
               e.currentTarget.nextElementSibling?.classList.remove('hidden');
