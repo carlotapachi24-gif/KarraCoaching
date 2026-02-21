@@ -14,10 +14,12 @@ const dataPath = path.join(dataDir, 'store.json');
 const PORT = Number(process.env.PORT || 8787);
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-in-production';
+const MAX_JSON_BODY_BYTES = Number(process.env.MAX_JSON_BODY_BYTES || 8_000_000);
 const COACH_EMAIL = 'carlotaloopezcarracedo@gmail.com';
 const COACH_PASSWORD = '123456';
 const CLIENT_CREDENTIALS = process.env.CLIENT_CREDENTIALS || '';
 const ALLOW_OPEN_CLIENT_LOGIN = (process.env.ALLOW_OPEN_CLIENT_LOGIN || 'true').toLowerCase() === 'true';
+const progressPhotoViews = new Set(['frente', 'perfil', 'espalda']);
 
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || '')
   .split(',')
@@ -592,6 +594,7 @@ function buildDefaultStore() {
     messages: [],
     reviews: [],
     notifications: [],
+    progressPhotos: {},
   };
 }
 
@@ -650,6 +653,61 @@ function normalizeStoredPlan(plan, fallbackEmail = '', fallbackName = '') {
   };
 }
 
+function sanitizeProgressPhotoView(view) {
+  const normalized = String(view || '').trim().toLowerCase();
+  return progressPhotoViews.has(normalized) ? normalized : 'frente';
+}
+
+function sanitizeProgressPhotoRecord(item) {
+  if (!item || typeof item !== 'object') {
+    return null;
+  }
+
+  const imageData = String(item.imageData || '').trim();
+  if (!imageData.startsWith('data:image/')) {
+    return null;
+  }
+
+  const weightValue = Number(item.weightKg);
+  const weightKg =
+    Number.isFinite(weightValue) && weightValue > 0
+      ? Math.round(weightValue * 10) / 10
+      : null;
+
+  return {
+    id: String(item.id || randomUUID()),
+    view: sanitizeProgressPhotoView(item.view),
+    imageData,
+    uploadedAt: isIsoDate(item.uploadedAt) ? new Date(item.uploadedAt).toISOString() : nowIso(),
+    uploadedBy: normalizeEmail(item.uploadedBy || ''),
+    weightKg,
+  };
+}
+
+function sanitizeProgressPhotosCollection(collection) {
+  const photos = Array.isArray(collection)
+    ? collection
+        .map((item) => sanitizeProgressPhotoRecord(item))
+        .filter(Boolean)
+    : [];
+
+  photos.sort((a, b) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime());
+  return photos;
+}
+
+function ensureProgressPhotosStore() {
+  if (!store.progressPhotos || typeof store.progressPhotos !== 'object') {
+    store.progressPhotos = {};
+  }
+}
+
+function getProgressPhotosForClient(email) {
+  const normalizedEmail = normalizeEmail(email);
+  ensureProgressPhotosStore();
+  store.progressPhotos[normalizedEmail] = sanitizeProgressPhotosCollection(store.progressPhotos[normalizedEmail]);
+  return store.progressPhotos[normalizedEmail];
+}
+
 function ensureClientRecords(email, options = {}) {
   const normalizedEmail = normalizeEmail(email);
   if (!normalizedEmail || normalizedEmail === COACH_EMAIL) {
@@ -697,6 +755,12 @@ function ensureClientRecords(email, options = {}) {
     store.plans[normalizedEmail].monthlyPlan = buildDefaultMonthlyPlan(templateKey, monthlyGoal);
   }
 
+  ensureProgressPhotosStore();
+  if (!Array.isArray(store.progressPhotos[normalizedEmail])) {
+    store.progressPhotos[normalizedEmail] = [];
+  }
+  store.progressPhotos[normalizedEmail] = sanitizeProgressPhotosCollection(store.progressPhotos[normalizedEmail]);
+
   const clientUsers = store.users.filter((user) => user.role === 'CLIENT');
   if (clientUsers.length === 1) {
     const currentPlan = store.plans[normalizedEmail];
@@ -743,6 +807,8 @@ function ensureStoreConsistency() {
   if (!store.notifications || !Array.isArray(store.notifications)) {
     store.notifications = [];
   }
+
+  ensureProgressPhotosStore();
 
   if (!store.profiles || typeof store.profiles !== 'object') {
     store.profiles = {};
@@ -869,7 +935,7 @@ async function parseJsonBody(req) {
 
   for await (const chunk of req) {
     body += chunk;
-    if (body.length > 1_000_000) {
+    if (body.length > MAX_JSON_BODY_BYTES) {
       throw new Error('Body too large');
     }
   }
@@ -1073,6 +1139,20 @@ function sanitizeResourceBody(body) {
   };
 }
 
+function sanitizeProgressPhotoBody(body) {
+  const rawWeight = Number(body.weightKg);
+  const weightKg =
+    Number.isFinite(rawWeight) && rawWeight > 0
+      ? Math.round(rawWeight * 10) / 10
+      : null;
+
+  return {
+    view: sanitizeProgressPhotoView(body.view),
+    imageData: String(body.imageData || '').trim(),
+    weightKg,
+  };
+}
+
 async function handleApi(req, res, requestUrl) {
   await loadPromise;
   const pathname = requestUrl.pathname;
@@ -1191,6 +1271,10 @@ async function handleApi(req, res, requestUrl) {
 
     if (!email || !email.includes('@') || !password) {
       return json(req, res, 400, { message: 'Email y password son obligatorios' });
+    }
+
+    if (password.length < 6) {
+      return json(req, res, 400, { message: 'La contrasena debe tener al menos 6 caracteres' });
     }
 
     if (getUserForLogin(email)) {
@@ -1535,6 +1619,76 @@ async function handleApi(req, res, requestUrl) {
 
     await persistStore();
     return json(req, res, 200, { profile: store.profiles[targetEmail] });
+  }
+
+  if (pathname === '/api/progress/photos' && req.method === 'GET') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+
+    const requestedEmail = normalizeEmail(requestUrl.searchParams.get('email'));
+    const targetEmail =
+      session.user.role === 'COACH' && requestedEmail
+        ? requestedEmail
+        : session.user.email;
+
+    if (session.user.role === 'CLIENT' && targetEmail !== session.user.email) {
+      return json(req, res, 403, { message: 'No autorizado' });
+    }
+
+    if (session.user.role === 'COACH' && !getClientUser(targetEmail)) {
+      return json(req, res, 404, { message: 'Cliente no encontrado' });
+    }
+
+    if (targetEmail === COACH_EMAIL) {
+      return json(req, res, 400, { message: 'El coach no tiene panel de fotos de progreso' });
+    }
+
+    ensureClientRecords(targetEmail);
+    const photos = getProgressPhotosForClient(targetEmail);
+    return json(req, res, 200, { photos });
+  }
+
+  if (pathname === '/api/progress/photos' && req.method === 'POST') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+
+    let body;
+    try {
+      body = await parseJsonBody(req);
+    } catch {
+      return json(req, res, 400, { message: 'Solicitud invalida' });
+    }
+
+    if (session.user.role !== 'CLIENT') {
+      return json(req, res, 403, { message: 'Solo los clientes pueden subir fotos' });
+    }
+
+    const targetEmail = session.user.email;
+
+    if (targetEmail === COACH_EMAIL) {
+      return json(req, res, 400, { message: 'El coach no puede subir fotos en este panel' });
+    }
+
+    const payload = sanitizeProgressPhotoBody(body);
+    if (!payload.imageData.startsWith('data:image/')) {
+      return json(req, res, 400, { message: 'Debes subir una imagen valida' });
+    }
+
+    ensureClientRecords(targetEmail);
+    const photos = getProgressPhotosForClient(targetEmail);
+    const photo = {
+      id: randomUUID(),
+      view: payload.view,
+      imageData: payload.imageData,
+      weightKg: payload.weightKg,
+      uploadedAt: nowIso(),
+      uploadedBy: session.user.email,
+    };
+    photos.push(photo);
+    store.progressPhotos[targetEmail] = sanitizeProgressPhotosCollection(photos);
+
+    await persistStore();
+    return json(req, res, 201, { photo, photos: store.progressPhotos[targetEmail] });
   }
 
   if (pathname === '/api/plan' && req.method === 'GET') {

@@ -1,19 +1,13 @@
 ﻿import React, { useState, useRef } from 'react';
 import { 
   Heart, 
-  MessageCircle, 
   Share2, 
   MapPin, 
-  Timer, 
-  Zap, 
-  Trophy, 
   MoreHorizontal, 
   Footprints, 
   Dumbbell, 
   Bike,
   Plus,
-  Navigation,
-  ThumbsUp,
   X,
   Image as ImageIcon,
   Clock,
@@ -37,7 +31,6 @@ interface Activity {
   }[];
   visual?: string; // URL for map or photo
   kudos: number;
-  comments: number;
   hasKudos: boolean; // if current user liked it
 }
 
@@ -57,7 +50,6 @@ const initialActivities: Activity[] = [
     ],
     visual: 'https://picsum.photos/seed/map1/600/300', // Mocking a map view
     kudos: 24,
-    comments: 3,
     hasKudos: true,
   },
   {
@@ -75,7 +67,6 @@ const initialActivities: Activity[] = [
     ],
     visual: 'https://picsum.photos/seed/gym/600/400',
     kudos: 56,
-    comments: 12,
     hasKudos: false,
   },
   {
@@ -92,7 +83,6 @@ const initialActivities: Activity[] = [
     ],
     visual: 'https://picsum.photos/seed/bike/600/300',
     kudos: 18,
-    comments: 0,
     hasKudos: false,
   }
 ];
@@ -173,7 +163,6 @@ export const Activities: React.FC = () => {
       stats: mockStats,
       visual: newActivity.image || undefined,
       kudos: 0,
-      comments: 0,
       hasKudos: false
     };
 
@@ -474,11 +463,6 @@ const ActivityCard: React.FC<{ activity: Activity }> = ({ activity }) => {
             >
                {liked ? <Heart size={20} fill="currentColor" /> : <Heart size={20} />}
                <span>{likesCount}</span>
-            </button>
-
-            <button className="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-text uppercase tracking-wide transition-colors">
-               <MessageCircle size={20} />
-               <span>{activity.comments}</span>
             </button>
          </div>
 
