@@ -26,7 +26,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ role, email, displayName, onLogout }) => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
-  const logoFileName = 'ChatGPT Image 17 feb 2026, 15_33_32.png';
+  const logoFileName = 'ChatGPT Image 21 feb 2026, 15_52_09.png';
   const logoSrc = `${import.meta.env.BASE_URL}${encodeURI(logoFileName)}`;
 
   const isActive = (path: string) => location.pathname === path;
