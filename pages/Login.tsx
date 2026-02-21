@@ -10,6 +10,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const logoFileName = 'ChatGPT Image 21 feb 2026, 15_52_09-Photoroom.png';
+  const logoSrc = `${import.meta.env.BASE_URL}${encodeURI(logoFileName)}`;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -29,10 +31,10 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 shadow-xl shadow-slate-200/40">
-        <h1 className="font-display font-black italic text-3xl uppercase tracking-tight text-text mb-2">
-          Lopez Coaching
-        </h1>
-        <p className="text-sm text-slate-600 font-semibold mb-8">Inicia sesion para continuar</p>
+        <div className="mb-6 flex justify-center">
+          <img src={logoSrc} alt="Logo" className="h-14 w-auto object-contain" />
+        </div>
+        <p className="text-sm text-slate-600 font-semibold mb-8 text-center">Inicia sesion para continuar</p>
 
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div>
