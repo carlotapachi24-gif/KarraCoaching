@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { WhatsAppFloatingButton } from '../components/WhatsAppFloatingButton';
 
 interface LoginProps {
   onLogin: (email: string, password: string) => Promise<void>;
@@ -75,6 +76,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </button>
         </form>
       </div>
+      <WhatsAppFloatingButton showBubble bubbleText={'\u00bfNecesitas un preparador f\u00edsico?'} />
     </div>
   );
 };

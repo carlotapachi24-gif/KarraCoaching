@@ -15,6 +15,7 @@ import { Activities } from './pages/Activities';
 import { ClientProfileData, UserRole } from './types';
 import { Login } from './pages/Login';
 import { deriveUserIdentity } from './utils/userIdentity';
+import { WhatsAppFloatingButton } from './components/WhatsAppFloatingButton';
 
 interface AuthUser {
   email: string;
@@ -354,6 +355,7 @@ function App() {
             </Routes>
           </div>
         </main>
+        {user.role === UserRole.CLIENT && <WhatsAppFloatingButton />}
       </div>
     </Router>
   );
