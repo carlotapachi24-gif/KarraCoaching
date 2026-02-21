@@ -892,6 +892,14 @@ function getUserForLogin(email) {
   return store.users.find((item) => item.email === normalizedEmail) || null;
 }
 
+function getExpectedPassword(user) {
+  if (!user) return '';
+  if (user.role === 'COACH') {
+    return String(user.password || COACH_PASSWORD);
+  }
+  return String(user.password || '');
+}
+
 function sanitizeReviewPayload(payload) {
   const weightKg = Number(payload.weightKg || 0);
   const energy = Number(payload.energy || 0);
@@ -1090,8 +1098,13 @@ async function handleApi(req, res, requestUrl) {
       return json(req, res, 400, { message: 'Correo y contrasena obligatorios' });
     }
 
-    if (email === COACH_EMAIL && password !== COACH_PASSWORD) {
-      return json(req, res, 401, { message: 'Credenciales incorrectas' });
+    const userRecord = getUserForLogin(email);
+
+    if (email === COACH_EMAIL) {
+      const expectedCoachPassword = getExpectedPassword(userRecord);
+      if (password !== expectedCoachPassword) {
+        return json(req, res, 401, { message: 'Credenciales incorrectas' });
+      }
     }
 
     if (email !== COACH_EMAIL) {
@@ -1117,14 +1130,14 @@ async function handleApi(req, res, requestUrl) {
       }
     }
 
-    const userRecord = getUserForLogin(email);
-    if (!userRecord) {
+    const finalUserRecord = getUserForLogin(email);
+    if (!finalUserRecord) {
       return json(req, res, 401, { message: 'Credenciales incorrectas' });
     }
 
     const user = {
-      email: userRecord.email,
-      role: userRecord.role,
+      email: finalUserRecord.email,
+      role: finalUserRecord.role,
     };
 
     const token = createAuthToken();
@@ -1733,19 +1746,13 @@ async function handleApi(req, res, requestUrl) {
       return json(req, res, 400, { message: 'La nueva contrasena debe tener al menos 6 caracteres' });
     }
 
-    if (session.user.email === COACH_EMAIL) {
-      if (currentPassword !== COACH_PASSWORD) {
-        return json(req, res, 401, { message: 'Contrasena actual incorrecta' });
-      }
-      return json(req, res, 400, { message: 'La contrasena del coach se gestiona por entorno' });
-    }
-
-    const user = getClientUser(session.user.email);
+    const user = getUserForLogin(session.user.email);
     if (!user) {
       return json(req, res, 404, { message: 'Usuario no encontrado' });
     }
 
-    if (user.password !== currentPassword) {
+    const expectedPassword = getExpectedPassword(user);
+    if (expectedPassword !== currentPassword) {
       return json(req, res, 401, { message: 'Contrasena actual incorrecta' });
     }
 
