@@ -131,6 +131,14 @@ function defaultVideoUrlForResource(title) {
   return defaultResourceVideoUrlByKey.get(normalizeResourceKey(title)) || '';
 }
 
+function normalizeResourceVideoUrl(videoUrl) {
+  const normalized = String(videoUrl || '').trim();
+  if (!normalized) return '';
+  if (normalized === '/aperturas-com-mancuernas.gif') return '/aperturas-con-mancuernas.gif';
+  if (normalized === '/cruce de poleas.gif') return '/cruce-de-poleas.gif';
+  return normalized;
+}
+
 function mergeLibrarySeedResources(existingResources) {
   const safeResources = Array.isArray(existingResources) ? [...existingResources] : [];
   const existingKeys = new Set();
@@ -139,6 +147,8 @@ function mergeLibrarySeedResources(existingResources) {
     const key = normalizeResourceKey(resource?.title);
     if (!key) return;
     existingKeys.add(key);
+
+    resource.videoUrl = normalizeResourceVideoUrl(resource?.videoUrl);
 
     if (!String(resource?.videoUrl || '').trim()) {
       const fallbackVideoUrl = defaultVideoUrlForResource(resource?.title);

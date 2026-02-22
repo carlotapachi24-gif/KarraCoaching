@@ -27,7 +27,7 @@ const defaultMediaByTitle: Record<string, string> = {
   'press banca plano': '/press-banca.gif',
   'dominadas pronas': '/dominadas-pronas.gif',
   'aperturas con mancuernas': '/aperturas-con-mancuernas.gif',
-  'cruce de poleas': '/cruce de poleas.gif',
+  'cruce de poleas': '/cruce-de-poleas.gif',
   'flexiones': '/flexiones.gif',
   'fondos en paralelas': '/fondos-paralelas.gif',
   'press banca inclinado': '/press-banca-inclinado.gif',
