@@ -20,10 +20,17 @@ const TOKEN_STORAGE_KEY = 'karra_auth_token';
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
+const normalizeResourceTitle = (title: string) => String(title || '').trim().toLowerCase();
+
+const defaultMediaByTitle: Record<string, string> = {
+  'press banca plano': '/press%20banca.gif',
+};
+
 const isVideoFile = (url: string) => /\.(mp4|webm|ogg)(\?.*)?$/i.test(url);
 
 const ResourceMedia = ({ resource, className }: { resource: LibraryResource; className: string }) => {
-  const mediaUrl = String(resource.videoUrl || '').trim();
+  const mediaUrl =
+    String(resource.videoUrl || '').trim() || defaultMediaByTitle[normalizeResourceTitle(resource.title)] || '';
 
   if (!mediaUrl) {
     return <img src={`https://picsum.photos/seed/${encodeURIComponent(resource.id)}/800/500`} alt={resource.title} className={className} />;
