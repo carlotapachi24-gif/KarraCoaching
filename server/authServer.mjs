@@ -118,7 +118,7 @@ function normalizeResourceKey(title) {
 }
 
 const defaultResourceVideoUrlByKey = new Map([
-  [normalizeResourceKey('Press banca plano'), '/press%20banca.gif'],
+  [normalizeResourceKey('Press banca plano'), '/press-banca.gif'],
 ]);
 
 function defaultVideoUrlForResource(title) {

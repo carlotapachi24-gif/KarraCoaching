@@ -23,7 +23,7 @@ const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 const normalizeResourceTitle = (title: string) => String(title || '').trim().toLowerCase();
 
 const defaultMediaByTitle: Record<string, string> = {
-  'press banca plano': '/press%20banca.gif',
+  'press banca plano': '/press-banca.gif',
 };
 
 const isVideoFile = (url: string) => /\.(mp4|webm|ogg)(\?.*)?$/i.test(url);
