@@ -119,12 +119,12 @@ function normalizeResourceKey(title) {
 
 const defaultResourceVideoUrlByKey = new Map([
   [normalizeResourceKey('Press banca plano'), '/press-banca.gif'],
-  [normalizeResourceKey('Dominadas pronas'), '/dominadas-pronas.png'],
-  [normalizeResourceKey('Aperturas con mancuernas'), '/aperturas-mancuernas.png'],
-  [normalizeResourceKey('Cruce de poleas'), '/cruce-poleas.png'],
-  [normalizeResourceKey('Flexiones'), '/flexiones.png'],
-  [normalizeResourceKey('Fondos en paralelas'), '/fondos-paralelas.png'],
-  [normalizeResourceKey('Press banca inclinado'), '/press-banca-inclinado.png'],
+  [normalizeResourceKey('Dominadas pronas'), '/dominadas-pronas.gif'],
+  [normalizeResourceKey('Aperturas con mancuernas'), '/aperturas-con-mancuernas.gif'],
+  [normalizeResourceKey('Cruce de poleas'), '/cruce-de-poleas.gif'],
+  [normalizeResourceKey('Flexiones'), '/flexiones.gif'],
+  [normalizeResourceKey('Fondos en paralelas'), '/fondos-paralelas.gif'],
+  [normalizeResourceKey('Press banca inclinado'), '/press-banca-inclinado.gif'],
 ]);
 
 function defaultVideoUrlForResource(title) {
