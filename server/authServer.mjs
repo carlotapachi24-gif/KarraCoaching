@@ -125,6 +125,9 @@ const defaultResourceVideoUrlByKey = new Map([
   [normalizeResourceKey('Flexiones'), '/flexiones.gif'],
   [normalizeResourceKey('Fondos en paralelas'), '/fondos-paralelas.gif'],
   [normalizeResourceKey('Press banca inclinado'), '/press-banca-inclinado.gif'],
+  [normalizeResourceKey('Pullover con mancuerna'), '/pullover-mancuerna.gif'],
+  [normalizeResourceKey('Sentadillaress-banca-inclinado.gif'],
+
 ]);
 
 function defaultVideoUrlForResource(title) {
