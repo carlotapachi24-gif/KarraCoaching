@@ -25,12 +25,12 @@ const normalizeResourceTitle = (title: string) => String(title || '').trim().toL
 
 const defaultMediaByTitle: Record<string, string> = {
   'press banca plano': '/press-banca.gif',
-  'dominadas pronas': '/dominadas-pronas.png',
-  'aperturas con mancuernas': '/aperturas-mancuernas.png',
-  'cruce de poleas': '/cruce-poleas.png',
-  'flexiones': '/flexiones.png',
-  'fondos en paralelas': '/fondos-paralelas.png',
-  'press banca inclinado': '/press-banca-inclinado.png',
+  'dominadas pronas': '/dominadas-pronas.gif',
+  'aperturas con mancuernas': '/aperturas-con-mancuernas.gif',
+  'cruce de poleas': '/cruce de poleas.gif',
+  'flexiones': '/flexiones.gif',
+  'fondos en paralelas': '/fondos-paralelas.gif',
+  'press banca inclinado': '/press-banca-inclinado.gif',
 };
 
 const isVideoFile = (url: string) => /\.(mp4|webm|ogg)(\?.*)?$/i.test(url);
