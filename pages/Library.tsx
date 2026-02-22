@@ -18,6 +18,7 @@ interface LibraryResource {
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const BASE_URL = import.meta.env.BASE_URL || '/';
 const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
 const normalizeResourceTitle = (title: string) => String(title || '').trim().toLowerCase();
@@ -28,15 +29,25 @@ const defaultMediaByTitle: Record<string, string> = {
 
 const isVideoFile = (url: string) => /\.(mp4|webm|ogg)(\?.*)?$/i.test(url);
 
+const resolveMediaUrl = (url: string) => {
+  const value = String(url || '').trim();
+  if (!value) return '';
+  if (/^(https?:|data:|blob:)/i.test(value)) return value;
+
+  const normalized = value.replace(/^\/+/, '');
+  return `${BASE_URL}${normalized}`;
+};
+
 const ResourceMedia = ({ resource, className }: { resource: LibraryResource; className: string }) => {
-  const mediaUrl =
+  const rawMediaUrl =
     String(resource.videoUrl || '').trim() || defaultMediaByTitle[normalizeResourceTitle(resource.title)] || '';
+  const mediaUrl = resolveMediaUrl(rawMediaUrl);
 
   if (!mediaUrl) {
     return <img src={`https://picsum.photos/seed/${encodeURIComponent(resource.id)}/800/500`} alt={resource.title} className={className} />;
   }
 
-  if (isVideoFile(mediaUrl)) {
+  if (isVideoFile(rawMediaUrl)) {
     return (
       <video
         src={mediaUrl}
