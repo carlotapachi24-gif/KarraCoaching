@@ -36,6 +36,7 @@ const contentTypes = {
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.gif': 'image/gif',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -106,7 +107,7 @@ function buildSeedLibraryResources() {
     category: item.category,
     muscle: item.muscle,
     description: item.description,
-    videoUrl: '',
+    videoUrl: defaultVideoUrlForResource(item.title),
     createdAt,
     createdBy: COACH_EMAIL,
   }));
@@ -116,13 +117,30 @@ function normalizeResourceKey(title) {
   return String(title || '').trim().toLowerCase();
 }
 
+const defaultResourceVideoUrlByKey = new Map([
+  [normalizeResourceKey('Press banca plano'), '/press%20banca.gif'],
+]);
+
+function defaultVideoUrlForResource(title) {
+  return defaultResourceVideoUrlByKey.get(normalizeResourceKey(title)) || '';
+}
+
 function mergeLibrarySeedResources(existingResources) {
   const safeResources = Array.isArray(existingResources) ? [...existingResources] : [];
-  const existingKeys = new Set(
-    safeResources
-      .map((resource) => normalizeResourceKey(resource?.title))
-      .filter(Boolean),
-  );
+  const existingKeys = new Set();
+
+  safeResources.forEach((resource) => {
+    const key = normalizeResourceKey(resource?.title);
+    if (!key) return;
+    existingKeys.add(key);
+
+    if (!String(resource?.videoUrl || '').trim()) {
+      const fallbackVideoUrl = defaultVideoUrlForResource(resource?.title);
+      if (fallbackVideoUrl) {
+        resource.videoUrl = fallbackVideoUrl;
+      }
+    }
+  });
 
   for (const seed of librarySeedCatalog) {
     const key = normalizeResourceKey(seed.title);
@@ -136,7 +154,7 @@ function mergeLibrarySeedResources(existingResources) {
       category: seed.category,
       muscle: seed.muscle,
       description: seed.description,
-      videoUrl: '',
+      videoUrl: defaultVideoUrlForResource(seed.title),
       createdAt: nowIso(),
       createdBy: COACH_EMAIL,
     });

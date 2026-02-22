@@ -20,6 +20,32 @@ const TOKEN_STORAGE_KEY = 'karra_auth_token';
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
+const isVideoFile = (url: string) => /\.(mp4|webm|ogg)(\?.*)?$/i.test(url);
+
+const ResourceMedia = ({ resource, className }: { resource: LibraryResource; className: string }) => {
+  const mediaUrl = String(resource.videoUrl || '').trim();
+
+  if (!mediaUrl) {
+    return <img src={`https://picsum.photos/seed/${encodeURIComponent(resource.id)}/800/500`} alt={resource.title} className={className} />;
+  }
+
+  if (isVideoFile(mediaUrl)) {
+    return (
+      <video
+        src={mediaUrl}
+        className={className}
+        autoPlay
+        loop
+        muted
+        playsInline
+        preload="metadata"
+      />
+    );
+  }
+
+  return <img src={mediaUrl} alt={resource.title} className={className} />;
+};
+
 export const Library: React.FC<LibraryProps> = ({ isEmbedded = false, readOnly = false }) => {
   const [resources, setResources] = useState<LibraryResource[]>([]);
   const [activeFilter, setActiveFilter] = useState('Todos');
@@ -110,7 +136,7 @@ export const Library: React.FC<LibraryProps> = ({ isEmbedded = false, readOnly =
         <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in flex flex-col">
             <div className="aspect-video bg-slate-900 relative">
-              <img src={`https://picsum.photos/seed/${encodeURIComponent(selectedResource.id)}/800/500`} alt={selectedResource.title} className="w-full h-full object-cover opacity-60" />
+              <ResourceMedia resource={selectedResource} className="w-full h-full object-cover opacity-70" />
               <button onClick={() => setSelectedResource(null)} className="absolute top-4 right-4 bg-black/40 text-white p-2 rounded-full hover:bg-black/60 transition-colors">
                 <X size={20} />
               </button>
@@ -228,7 +254,7 @@ export const Library: React.FC<LibraryProps> = ({ isEmbedded = false, readOnly =
                 className="text-left bg-white rounded-2xl overflow-hidden border border-slate-100 hover:shadow-lg transition-all group cursor-pointer hover:-translate-y-1"
               >
                 <div className="aspect-video bg-slate-200 relative overflow-hidden">
-                  <img src={`https://picsum.photos/seed/${encodeURIComponent(resource.id)}/400/250`} alt={resource.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <ResourceMedia resource={resource} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white border border-white/50">
                       <Play fill="currentColor" size={20} />
