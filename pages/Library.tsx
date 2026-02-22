@@ -25,6 +25,12 @@ const normalizeResourceTitle = (title: string) => String(title || '').trim().toL
 
 const defaultMediaByTitle: Record<string, string> = {
   'press banca plano': '/press-banca.gif',
+  'dominadas pronas': '/dominadas-pronas.png',
+  'aperturas con mancuernas': '/aperturas-mancuernas.png',
+  'cruce de poleas': '/cruce-poleas.png',
+  'flexiones': '/flexiones.png',
+  'fondos en paralelas': '/fondos-paralelas.png',
+  'press banca inclinado': '/press-banca-inclinado.png',
 };
 
 const isVideoFile = (url: string) => /\.(mp4|webm|ogg)(\?.*)?$/i.test(url);
@@ -39,12 +45,18 @@ const resolveMediaUrl = (url: string) => {
 };
 
 const ResourceMedia = ({ resource, className }: { resource: LibraryResource; className: string }) => {
+  const [hasError, setHasError] = useState(false);
   const rawMediaUrl =
     String(resource.videoUrl || '').trim() || defaultMediaByTitle[normalizeResourceTitle(resource.title)] || '';
   const mediaUrl = resolveMediaUrl(rawMediaUrl);
+  const placeholderUrl = `https://picsum.photos/seed/${encodeURIComponent(resource.id)}/800/500`;
 
-  if (!mediaUrl) {
-    return <img src={`https://picsum.photos/seed/${encodeURIComponent(resource.id)}/800/500`} alt={resource.title} className={className} />;
+  useEffect(() => {
+    setHasError(false);
+  }, [resource.id, rawMediaUrl]);
+
+  if (!mediaUrl || hasError) {
+    return <img src={placeholderUrl} alt={resource.title} className={className} />;
   }
 
   if (isVideoFile(rawMediaUrl)) {
@@ -57,11 +69,12 @@ const ResourceMedia = ({ resource, className }: { resource: LibraryResource; cla
         muted
         playsInline
         preload="metadata"
+        onError={() => setHasError(true)}
       />
     );
   }
 
-  return <img src={mediaUrl} alt={resource.title} className={className} />;
+  return <img src={mediaUrl} alt={resource.title} className={className} onError={() => setHasError(true)} />;
 };
 
 export const Library: React.FC<LibraryProps> = ({ isEmbedded = false, readOnly = false }) => {
