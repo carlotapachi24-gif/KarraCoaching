@@ -15,6 +15,24 @@ interface ProgressPhoto {
   weightKg: number | null;
 }
 
+interface ProgressMetricsResponse {
+  bodyWeightHistory: {
+    recordedAt: string;
+    weightKg: number;
+    source: string;
+    reviewId: string;
+  }[];
+  exerciseWeightHistory: {
+    exerciseName: string;
+    points: {
+      recordedAt: string;
+      weightKg: number;
+      dayTitle: string;
+      dayId: string;
+    }[];
+  }[];
+}
+
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
@@ -75,7 +93,7 @@ export const Profile: React.FC<ProfileProps> = ({
   currentWeightKg,
   injuries,
 }) => {
-  const [selectedPrExercise, setSelectedPrExercise] = useState<'squat' | 'bench' | 'deadlift'>('squat');
+  const [selectedPrExercise, setSelectedPrExercise] = useState('');
 
   const [activeView, setActiveView] = useState<ProgressView>('frente');
   const [isExporting, setIsExporting] = useState(false);
@@ -85,39 +103,13 @@ export const Profile: React.FC<ProfileProps> = ({
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [canUploadPhotos, setCanUploadPhotos] = useState(false);
   const [photoError, setPhotoError] = useState('');
+  const [metricsWeightHistory, setMetricsWeightHistory] = useState<{ date: string; weight: number }[]>([]);
+  const [exerciseWeightSeries, setExerciseWeightSeries] = useState<Record<string, { date: string; weight: number }[]>>({});
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const reportRef = useRef<HTMLDivElement>(null);
-
-  // Mock Data
-  const weightHistory = [
-    { date: '1 Ene', weight: 88.5 },
-    { date: '1 Feb', weight: 87.2 },
-    { date: '1 Mar', weight: 86.0 },
-    { date: '1 Abr', weight: 85.5 },
-    { date: '1 May', weight: 84.2 },
-    { date: '1 Jun', weight: 83.5 },
-  ];
-
-  const prHistory = {
-    squat: [
-      { date: 'Ene', weight: 120 },
-      { date: 'Mar', weight: 130 },
-      { date: 'May', weight: 135 },
-      { date: 'Jun', weight: 140 },
-    ],
-    bench: [
-      { date: 'Ene', weight: 90 },
-      { date: 'Mar', weight: 95 },
-      { date: 'May', weight: 97.5 },
-      { date: 'Jun', weight: 100 },
-    ],
-    deadlift: [
-      { date: 'Ene', weight: 150 },
-      { date: 'Mar', weight: 160 },
-      { date: 'May', weight: 170 },
-      { date: 'Jun', weight: 180 },
-    ]
-  };
+  const latestBodyWeight =
+    metricsWeightHistory.length > 0 ? metricsWeightHistory[metricsWeightHistory.length - 1].weight : null;
 
   const vamHistory = [
     { date: 'Ene', speed: 12.5 }, // km/h
@@ -146,7 +138,7 @@ export const Profile: React.FC<ProfileProps> = ({
     age: calculateAge(birthDate),
     height: heightCm || 182,
     startWeight: startWeightKg || 90.2,
-    currentWeight: currentWeightKg || 83.5,
+    currentWeight: latestBodyWeight || currentWeightKg || 83.5,
     email: clientEmail,
     level: 'Intermedio',
     // New Fields
@@ -159,6 +151,39 @@ export const Profile: React.FC<ProfileProps> = ({
             'Molestia hombro izquierdo en press vertical pesado.',
           ],
   };
+
+  const formatChartDate = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+  };
+
+  const fallbackWeightHistory = useMemo(() => {
+    const entries: { date: string; weight: number }[] = [];
+    const start = Number(personalData.startWeight);
+    const current = Number(personalData.currentWeight);
+
+    if (Number.isFinite(start) && start > 0) {
+      entries.push({ date: 'Inicio', weight: Math.round(start * 10) / 10 });
+    }
+    if (Number.isFinite(current) && current > 0) {
+      const safeCurrent = Math.round(current * 10) / 10;
+      if (entries.length === 0 || entries[entries.length - 1].weight !== safeCurrent) {
+        entries.push({ date: 'Actual', weight: safeCurrent });
+      }
+    }
+
+    return entries;
+  }, [personalData.currentWeight, personalData.startWeight]);
+
+  const weightHistory = metricsWeightHistory.length > 0 ? metricsWeightHistory : fallbackWeightHistory;
+
+  const exerciseOptions = useMemo(
+    () => Object.keys(exerciseWeightSeries).sort((a, b) => a.localeCompare(b, 'es')),
+    [exerciseWeightSeries],
+  );
+
+  const prChartData = selectedPrExercise ? exerciseWeightSeries[selectedPrExercise] || [] : [];
 
   useEffect(() => {
     const token = window.localStorage.getItem(TOKEN_STORAGE_KEY) || '';
@@ -194,6 +219,108 @@ export const Profile: React.FC<ProfileProps> = ({
     loadSession();
     return () => {
       cancelled = true;
+    };
+  }, [clientEmail]);
+
+  useEffect(() => {
+    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+    if (!token || !clientEmail) {
+      setMetricsWeightHistory([]);
+      setExerciseWeightSeries({});
+      setSelectedPrExercise('');
+      return;
+    }
+
+    let cancelled = false;
+    const loadMetrics = async () => {
+      setIsLoadingMetrics(true);
+      const query = `?email=${encodeURIComponent(clientEmail)}`;
+
+      try {
+        const response = await fetch(apiUrl(`/api/progress/metrics${query}`), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({ message: 'No se pudieron cargar metricas' }));
+          throw new Error(body.message || 'No se pudieron cargar metricas');
+        }
+
+        const data = (await response.json()) as ProgressMetricsResponse;
+        const bodyWeightHistory = Array.isArray(data.bodyWeightHistory)
+          ? data.bodyWeightHistory
+              .map((entry) => {
+                const weight = Number(entry.weightKg);
+                const timestamp = new Date(entry.recordedAt).getTime();
+                if (!Number.isFinite(weight) || weight <= 0 || Number.isNaN(timestamp)) {
+                  return null;
+                }
+                return { timestamp, date: formatChartDate(entry.recordedAt), weight: Math.round(weight * 10) / 10 };
+              })
+              .filter((entry): entry is { timestamp: number; date: string; weight: number } => Boolean(entry))
+              .sort((a, b) => a.timestamp - b.timestamp)
+              .map(({ date, weight }) => ({ date, weight }))
+          : [];
+
+        const seriesMap: Record<string, { date: string; weight: number }[]> = {};
+        if (Array.isArray(data.exerciseWeightHistory)) {
+          data.exerciseWeightHistory.forEach((series) => {
+            const name = String(series.exerciseName || '').trim();
+            if (!name || !Array.isArray(series.points)) return;
+
+            const points = series.points
+              .map((point) => {
+                const weight = Number(point.weightKg);
+                const timestamp = new Date(point.recordedAt).getTime();
+                if (!Number.isFinite(weight) || weight <= 0 || Number.isNaN(timestamp)) {
+                  return null;
+                }
+                return { timestamp, date: formatChartDate(point.recordedAt), weight: Math.round(weight * 100) / 100 };
+              })
+              .filter((point): point is { timestamp: number; date: string; weight: number } => Boolean(point))
+              .sort((a, b) => a.timestamp - b.timestamp)
+              .map(({ date, weight }) => ({ date, weight }));
+
+            if (points.length > 0) {
+              seriesMap[name] = points;
+            }
+          });
+        }
+
+        const sortedExerciseNames = Object.keys(seriesMap).sort((a, b) => a.localeCompare(b, 'es'));
+        if (!cancelled) {
+          setMetricsWeightHistory(bodyWeightHistory);
+          setExerciseWeightSeries(seriesMap);
+          setSelectedPrExercise((previous) =>
+            previous && sortedExerciseNames.includes(previous) ? previous : sortedExerciseNames[0] || '',
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setMetricsWeightHistory([]);
+          setExerciseWeightSeries({});
+          setSelectedPrExercise('');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingMetrics(false);
+        }
+      }
+    };
+
+    const handleDataUpdated = () => {
+      void loadMetrics();
+    };
+
+    void loadMetrics();
+    const refreshId = window.setInterval(() => {
+      void loadMetrics();
+    }, 30000);
+    window.addEventListener('karra:data:updated', handleDataUpdated);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshId);
+      window.removeEventListener('karra:data:updated', handleDataUpdated);
     };
   }, [clientEmail]);
 
@@ -458,7 +585,10 @@ export const Profile: React.FC<ProfileProps> = ({
              <div className="p-2 bg-secondary/10 text-secondary rounded-lg"><TrendingUp size={24} /></div>
              <h3 className="font-display font-black italic uppercase text-xl tracking-tighter">Evolución Peso Corporal</h3>
            </div>
-           
+           {isLoadingMetrics && (
+             <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 -mt-3 mb-3">Actualizando metricas...</p>
+           )}
+
            <div className="h-64 w-full">
              <ResponsiveContainer width="100%" height="100%">
                <AreaChart data={weightHistory}>
@@ -486,25 +616,32 @@ export const Profile: React.FC<ProfileProps> = ({
            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
              <div className="flex items-center gap-3">
                <div className="p-2 bg-primary/10 text-primary rounded-lg"><Trophy size={24} /></div>
-               <h3 className="font-display font-black italic uppercase text-xl tracking-tighter">Marcas Personales (PR)</h3>
+               <h3 className="font-display font-black italic uppercase text-xl tracking-tighter">Progreso de Cargas</h3>
              </div>
              <select 
                className="bg-slate-50 border-none font-black uppercase text-xs rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
                value={selectedPrExercise}
-               onChange={(e) => setSelectedPrExercise(e.target.value as any)}
+               onChange={(e) => setSelectedPrExercise(e.target.value)}
+               disabled={exerciseOptions.length === 0}
              >
-               <option value="squat">Sentadilla</option>
-               <option value="bench">Press Banca</option>
-               <option value="deadlift">Peso Muerto</option>
+               {exerciseOptions.length > 0 ? (
+                 exerciseOptions.map((exerciseName) => (
+                   <option key={exerciseName} value={exerciseName}>
+                     {exerciseName}
+                   </option>
+                 ))
+               ) : (
+                 <option value="">Sin datos</option>
+               )}
              </select>
            </div>
            
            <div className="h-64 w-full">
              <ResponsiveContainer width="100%" height="100%">
-               <LineChart data={prHistory[selectedPrExercise]}>
+               <LineChart data={prChartData}>
                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                  <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 700, fill: '#94a3b8'}} dy={10} />
-                 <YAxis domain={['dataMin - 10', 'dataMax + 10']} axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 700, fill: '#94a3b8'}} />
+                 <YAxis domain={['auto', 'auto']} axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 700, fill: '#94a3b8'}} />
                  <Tooltip 
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                     itemStyle={{ color: '#DC2626', fontWeight: 800 }}
@@ -520,6 +657,11 @@ export const Profile: React.FC<ProfileProps> = ({
                </LineChart>
              </ResponsiveContainer>
            </div>
+           {exerciseOptions.length === 0 && (
+             <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mt-2">
+               Completa entrenamientos y registra pesos para ver esta grafica.
+             </p>
+           )}
         </section>
 
         {/* VAM Evolution */}

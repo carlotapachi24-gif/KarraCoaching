@@ -296,6 +296,7 @@ function buildDefaultWorkoutExercises(title, exercisesCount) {
     sets: index < 2 ? '4' : '3',
     reps: index < 2 ? '6-10' : '10-15',
     rir: '2',
+    weight: '',
   }));
 }
 
@@ -315,6 +316,7 @@ function sanitizeWorkoutExercises(rawList, title, exercisesCount) {
         sets: String(item.sets || item.series || '3').trim(),
         reps: String(item.reps || item.repetitions || '8-12').trim(),
         rir: String(item.rir || '2').trim(),
+        weight: String(item.weight || item.peso || item.load || '').trim(),
       };
     })
     .filter(Boolean);
@@ -595,6 +597,7 @@ function buildDefaultStore() {
     reviews: [],
     notifications: [],
     progressPhotos: {},
+    workoutLogs: [],
   };
 }
 
@@ -708,6 +711,192 @@ function getProgressPhotosForClient(email) {
   return store.progressPhotos[normalizedEmail];
 }
 
+function parseWorkoutWeightKg(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const normalized = raw.replace(',', '.').replace(/[^0-9.\-]/g, '');
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) / 100 : null;
+}
+
+function sanitizeWorkoutLogRecord(item) {
+  if (!item || typeof item !== 'object') {
+    return null;
+  }
+
+  const clientEmail = normalizeEmail(item.clientEmail);
+  if (!clientEmail || clientEmail === COACH_EMAIL) {
+    return null;
+  }
+
+  const completedAt = isIsoDate(item.completedAt) ? new Date(item.completedAt).toISOString() : nowIso();
+  const scheduledDate = normalizePlanDate(item.scheduledDate || completedAt, toDateKey(new Date(completedAt)));
+  const exercises = Array.isArray(item.exercises)
+    ? item.exercises
+        .map((exercise) => {
+          const name = String(exercise?.name || '').trim();
+          if (!name) return null;
+          return {
+            id: String(exercise?.id || randomUUID()),
+            name,
+            weight: String(exercise?.weight || '').trim(),
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  return {
+    id: String(item.id || randomUUID()),
+    clientEmail,
+    dayId: String(item.dayId || '').trim(),
+    dayTitle: String(item.dayTitle || 'Sesion').trim() || 'Sesion',
+    scheduledDate,
+    completedAt,
+    completedBy: normalizeEmail(item.completedBy || ''),
+    exercises,
+  };
+}
+
+function ensureWorkoutLogsStore() {
+  if (!Array.isArray(store.workoutLogs)) {
+    store.workoutLogs = [];
+  }
+
+  store.workoutLogs = store.workoutLogs
+    .map((item) => sanitizeWorkoutLogRecord(item))
+    .filter(Boolean)
+    .sort((a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime());
+}
+
+function getWorkoutLogsForClient(email) {
+  const normalizedEmail = normalizeEmail(email);
+  ensureWorkoutLogsStore();
+  return store.workoutLogs.filter((log) => log.clientEmail === normalizedEmail);
+}
+
+function trackCompletedWorkoutLog(clientEmail, day, completedBy) {
+  const normalizedEmail = normalizeEmail(clientEmail);
+  if (!normalizedEmail || normalizedEmail === COACH_EMAIL || !day || typeof day !== 'object') {
+    return;
+  }
+
+  ensureWorkoutLogsStore();
+  const completedAt = nowIso();
+  const scheduledDate = normalizePlanDate(day.scheduledDate || completedAt, toDateKey(new Date(completedAt)));
+  const dayId = String(day.id || '').trim();
+  const exercises = Array.isArray(day.workoutExercises)
+    ? day.workoutExercises
+        .map((exercise, index) => {
+          const name = String(exercise?.name || '').trim();
+          if (!name) return null;
+          return {
+            id: String(exercise?.id || `exercise-${index + 1}`),
+            name,
+            weight: String(exercise?.weight || exercise?.peso || '').trim(),
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  const existingIndex = store.workoutLogs.findIndex(
+    (log) =>
+      log.clientEmail === normalizedEmail &&
+      log.dayId === dayId &&
+      log.scheduledDate === scheduledDate,
+  );
+
+  const nextRecord = {
+    id: existingIndex >= 0 ? store.workoutLogs[existingIndex].id : randomUUID(),
+    clientEmail: normalizedEmail,
+    dayId,
+    dayTitle: String(day.title || 'Sesion').trim() || 'Sesion',
+    scheduledDate,
+    completedAt,
+    completedBy: normalizeEmail(completedBy || ''),
+    exercises,
+  };
+
+  if (existingIndex >= 0) {
+    store.workoutLogs[existingIndex] = nextRecord;
+  } else {
+    store.workoutLogs.push(nextRecord);
+  }
+
+  store.workoutLogs.sort((a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime());
+}
+
+function buildProgressMetricsForClient(email) {
+  const normalizedEmail = normalizeEmail(email);
+  const reviews = store.reviews
+    .filter((review) => normalizeEmail(review.clientEmail) === normalizedEmail)
+    .filter((review) => Number(review.weightKg) > 0 && isIsoDate(review.submittedAt))
+    .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime());
+
+  const bodyWeightHistory = reviews.map((review) => ({
+    recordedAt: new Date(review.submittedAt).toISOString(),
+    weightKg: Math.round(Number(review.weightKg) * 10) / 10,
+    source: 'checkin',
+    reviewId: String(review.id || ''),
+  }));
+
+  if (bodyWeightHistory.length === 0) {
+    const profileWeight = Number(store.profiles[normalizedEmail]?.currentWeightKg || 0);
+    if (Number.isFinite(profileWeight) && profileWeight > 0) {
+      bodyWeightHistory.push({
+        recordedAt: nowIso(),
+        weightKg: Math.round(profileWeight * 10) / 10,
+        source: 'profile',
+        reviewId: '',
+      });
+    }
+  }
+
+  const logs = getWorkoutLogsForClient(normalizedEmail);
+  const seriesByExercise = new Map();
+
+  logs.forEach((log) => {
+    const logDate = isIsoDate(log.completedAt) ? new Date(log.completedAt).toISOString() : nowIso();
+    const dayTitle = String(log.dayTitle || 'Sesion').trim() || 'Sesion';
+    const dayId = String(log.dayId || '').trim();
+
+    (Array.isArray(log.exercises) ? log.exercises : []).forEach((exercise) => {
+      const exerciseName = String(exercise?.name || '').trim();
+      const weightKg = parseWorkoutWeightKg(exercise?.weight);
+      if (!exerciseName || !weightKg) return;
+
+      if (!seriesByExercise.has(exerciseName)) {
+        seriesByExercise.set(exerciseName, []);
+      }
+
+      seriesByExercise.get(exerciseName).push({
+        recordedAt: logDate,
+        weightKg,
+        dayTitle,
+        dayId,
+      });
+    });
+  });
+
+  const exerciseWeightHistory = Array.from(seriesByExercise.entries())
+    .map(([exerciseName, points]) => ({
+      exerciseName,
+      points: points.sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime()),
+    }))
+    .filter((series) => series.points.length > 0)
+    .sort((a, b) => {
+      if (b.points.length !== a.points.length) {
+        return b.points.length - a.points.length;
+      }
+      return a.exerciseName.localeCompare(b.exerciseName);
+    });
+
+  return {
+    bodyWeightHistory,
+    exerciseWeightHistory,
+  };
+}
+
 function ensureClientRecords(email, options = {}) {
   const normalizedEmail = normalizeEmail(email);
   if (!normalizedEmail || normalizedEmail === COACH_EMAIL) {
@@ -809,6 +998,7 @@ function ensureStoreConsistency() {
   }
 
   ensureProgressPhotosStore();
+  ensureWorkoutLogsStore();
 
   if (!store.profiles || typeof store.profiles !== 'object') {
     store.profiles = {};
@@ -1648,6 +1838,33 @@ async function handleApi(req, res, requestUrl) {
     return json(req, res, 200, { photos });
   }
 
+  if (pathname === '/api/progress/metrics' && req.method === 'GET') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+
+    const requestedEmail = normalizeEmail(requestUrl.searchParams.get('email'));
+    const targetEmail =
+      session.user.role === 'COACH' && requestedEmail
+        ? requestedEmail
+        : session.user.email;
+
+    if (session.user.role === 'CLIENT' && targetEmail !== session.user.email) {
+      return json(req, res, 403, { message: 'No autorizado' });
+    }
+
+    if (session.user.role === 'COACH' && !getClientUser(targetEmail)) {
+      return json(req, res, 404, { message: 'Cliente no encontrado' });
+    }
+
+    if (targetEmail === COACH_EMAIL) {
+      return json(req, res, 400, { message: 'El coach no tiene metricas de progreso de cliente' });
+    }
+
+    ensureClientRecords(targetEmail);
+    const metrics = buildProgressMetricsForClient(targetEmail);
+    return json(req, res, 200, metrics);
+  }
+
   if (pathname === '/api/progress/photos' && req.method === 'POST') {
     const session = requireAuth(req, res);
     if (!session) return;
@@ -1792,6 +2009,32 @@ async function handleApi(req, res, requestUrl) {
     const day = plan.weeklySchedule.find((item) => item.id === dayId);
     if (!day) {
       return json(req, res, 404, { message: 'Dia de plan no encontrado' });
+    }
+
+    if (Array.isArray(body.workoutExercises) && Array.isArray(day.workoutExercises)) {
+      const weightByExerciseId = new Map(
+        body.workoutExercises
+          .map((item) => {
+            const id = String(item?.id || '').trim();
+            if (!id) return null;
+            return [id, String(item?.weight || item?.peso || '').trim()];
+          })
+          .filter(Boolean),
+      );
+
+      day.workoutExercises = day.workoutExercises.map((exercise) => {
+        const currentId = String(exercise.id || '').trim();
+        const hasUpdate = weightByExerciseId.has(currentId);
+        return {
+          ...exercise,
+          weight: hasUpdate ? String(weightByExerciseId.get(currentId) || '') : String(exercise.weight || '').trim(),
+        };
+      });
+      day.exercises = day.workoutExercises.length;
+    }
+
+    if (status === 'completed') {
+      trackCompletedWorkoutLog(targetEmail, day, session.user.email);
     }
 
     day.status = status;

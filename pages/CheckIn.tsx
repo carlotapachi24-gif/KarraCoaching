@@ -100,6 +100,7 @@ export const CheckIn: React.FC = () => {
 
       alert('Check-in enviado correctamente. Tu coach ya puede revisarlo.');
       setComments('');
+      window.dispatchEvent(new Event('karra:data:updated'));
       await loadReviewStatus();
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Error al enviar check-in');

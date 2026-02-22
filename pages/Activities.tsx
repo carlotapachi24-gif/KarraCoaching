@@ -7,6 +7,7 @@ import {
   Footprints, 
   Dumbbell, 
   Bike,
+  Waves,
   Plus,
   X,
   Image as ImageIcon,
@@ -14,7 +15,7 @@ import {
   Upload
 } from 'lucide-react';
 
-type ActivityType = 'Run' | 'WeightTraining' | 'Ride';
+type ActivityType = 'running' | 'gimnasio' | 'bici' | 'nadar' | 'fuerza';
 
 interface Activity {
   id: number;
@@ -42,7 +43,7 @@ const initialActivities: Activity[] = [
     date: 'Hoy, 07:30 AM',
     title: 'Rodaje suave matutino',
     description: 'Probando las nuevas zapatillas. Ritmo comodo y pulsaciones bajas.',
-    type: 'Run',
+    type: 'running',
     stats: [
       { label: 'Distancia', value: '8.52', unit: 'km' },
       { label: 'Ritmo', value: '5:12', unit: '/km' },
@@ -59,7 +60,7 @@ const initialActivities: Activity[] = [
     date: 'Ayer, 18:45 PM',
     title: 'Pierna: Foco en Sentadilla',
     description: 'Buscando RPE 9 en la top set. La tecnica se sintio solida.',
-    type: 'WeightTraining',
+    type: 'gimnasio',
     stats: [
       { label: 'Volumen', value: '12.4', unit: 'ton' },
       { label: 'Tiempo', value: '1h 20m' },
@@ -75,7 +76,7 @@ const initialActivities: Activity[] = [
     avatar: 'https://picsum.photos/seed/maria/100',
     date: 'Ayer, 08:00 AM',
     title: 'Salida de Domingo en bici',
-    type: 'Ride',
+    type: 'bici',
     stats: [
       { label: 'Distancia', value: '45.2', unit: 'km' },
       { label: 'Potencia', value: '180', unit: 'w' },
@@ -97,7 +98,7 @@ export const Activities: React.FC = () => {
     title: '',
     description: '',
     duration: '',
-    type: 'Run' as ActivityType,
+    type: 'running' as ActivityType,
     image: null as string | null
   });
   
@@ -132,23 +133,35 @@ export const Activities: React.FC = () => {
     
     // Generate mock stats based on type
     let mockStats = [];
-    if (newActivity.type === 'Run') {
+    if (newActivity.type === 'running') {
       mockStats = [
         { label: 'Distancia', value: '5.0', unit: 'km' },
         { label: 'Ritmo', value: '5:30', unit: '/km' },
         { label: 'Tiempo', value: newActivity.duration || '30:00' },
       ];
-    } else if (newActivity.type === 'Ride') {
+    } else if (newActivity.type === 'bici') {
       mockStats = [
         { label: 'Distancia', value: '20.0', unit: 'km' },
         { label: 'Potencia', value: '150', unit: 'w' },
         { label: 'Tiempo', value: newActivity.duration || '60:00' },
       ];
-    } else {
-       mockStats = [
+    } else if (newActivity.type === 'nadar') {
+      mockStats = [
+        { label: 'Distancia', value: '1.2', unit: 'km' },
+        { label: 'Ritmo', value: '2:05', unit: '/100m' },
+        { label: 'Tiempo', value: newActivity.duration || '40:00' },
+      ];
+    } else if (newActivity.type === 'gimnasio') {
+      mockStats = [
         { label: 'Volumen', value: '8.5', unit: 'ton' },
         { label: 'Tiempo', value: newActivity.duration || '45:00' },
         { label: 'PRs', value: '0' },
+      ];
+    } else {
+      mockStats = [
+        { label: 'Series', value: '18' },
+        { label: 'Tiempo', value: newActivity.duration || '50:00' },
+        { label: 'Carga', value: 'media' },
       ];
     }
 
@@ -168,7 +181,7 @@ export const Activities: React.FC = () => {
 
     setActivities([activity, ...activities]);
     setIsModalOpen(false);
-    setNewActivity({ title: '', description: '', duration: '', type: 'Run', image: null });
+    setNewActivity({ title: '', description: '', duration: '', type: 'running', image: null });
   };
 
   const filteredActivities = activeTab === 'community' 
@@ -236,9 +249,11 @@ export const Activities: React.FC = () => {
                     onChange={e => setNewActivity({...newActivity, type: e.target.value as ActivityType})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none font-bold text-text"
                   >
-                    <option value="Run">Run</option>
-                    <option value="WeightTraining">Pesas</option>
-                    <option value="Ride">Bici</option>
+                    <option value="running">running</option>
+                    <option value="gimnasio">gimnasio</option>
+                    <option value="bici">bici</option>
+                    <option value="nadar">nadar</option>
+                    <option value="fuerza">fuerza</option>
                   </select>
                 </div>
               </div>
@@ -378,9 +393,15 @@ const ActivityCard: React.FC<{ activity: Activity }> = ({ activity }) => {
 
   const getActivityIcon = (type: ActivityType) => {
     switch (type) {
-      case 'Run': return <Footprints size={16} />;
-      case 'Ride': return <Bike size={16} />;
-      case 'WeightTraining': return <Dumbbell size={16} />;
+      case 'running':
+        return <Footprints size={16} />;
+      case 'bici':
+        return <Bike size={16} />;
+      case 'nadar':
+        return <Waves size={16} />;
+      case 'gimnasio':
+      case 'fuerza':
+        return <Dumbbell size={16} />;
     }
   };
 
@@ -436,7 +457,7 @@ const ActivityCard: React.FC<{ activity: Activity }> = ({ activity }) => {
         {activity.visual && (
           <div className="rounded-lg overflow-hidden relative bg-slate-100">
              {/* If it's a 'map', we can simulate a map overlay look */}
-             {activity.type === 'Run' || activity.type === 'Ride' ? (
+             {activity.type === 'running' || activity.type === 'bici' ? (
                 <div className="relative">
                   <img src={activity.visual} alt="Content" className="w-full max-h-96 object-cover" />
                   {activity.visual.includes('map') && (

@@ -34,6 +34,7 @@ interface WorkoutExercise {
   sets: string;
   reps: string;
   rir: string;
+  weight: string;
 }
 
 interface PlanDay {
@@ -191,6 +192,7 @@ const createDefaultExercise = (name: string, resourceId = '', index = 0): Workou
   sets: index < 2 ? '4' : '3',
   reps: index < 2 ? '6-10' : '10-15',
   rir: '2',
+  weight: '',
 });
 
 const buildFallbackExercises = (title: string, total: number) => {
@@ -217,6 +219,7 @@ const normalizeExercise = (exercise: Partial<WorkoutExercise>, index: number): W
     sets: String(exercise.sets || '3').trim() || '3',
     reps: String(exercise.reps || '8-12').trim() || '8-12',
     rir: String(exercise.rir || '2').trim() || '2',
+    weight: String((exercise as { weight?: string; peso?: string; load?: string }).weight || (exercise as { peso?: string }).peso || (exercise as { load?: string }).load || '').trim(),
   };
 };
 
@@ -598,7 +601,7 @@ export const Plan: React.FC<PlanProps> = ({ currentUserRole }) => {
   const updateWorkoutExercise = (
     dayId: string,
     exerciseId: string,
-    field: keyof Pick<WorkoutExercise, 'name' | 'sets' | 'reps' | 'rir'>,
+    field: keyof Pick<WorkoutExercise, 'name' | 'sets' | 'reps' | 'rir' | 'weight'>,
     value: string,
   ) => {
     updateDay(dayId, (day) => ({
@@ -723,11 +726,15 @@ export const Plan: React.FC<PlanProps> = ({ currentUserRole }) => {
     }
   };
 
-  const markWorkoutCompleted = async () => {
+  const markWorkoutCompleted = async (exercisePayload: WorkoutExercise[]) => {
     if (!selectedWorkout) return;
 
     setIsUpdatingWorkout(true);
     const token = window.localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+    const workoutExercises = (Array.isArray(exercisePayload) ? exercisePayload : []).map((exercise) => ({
+      id: exercise.id,
+      weight: String(exercise.weight || '').trim(),
+    }));
 
     try {
       const response = await fetch(apiUrl('/api/plan/day-status'), {
@@ -740,6 +747,7 @@ export const Plan: React.FC<PlanProps> = ({ currentUserRole }) => {
           dayId: selectedWorkout.id,
           status: 'completed',
           ...(isCoachMode ? { email: targetEmail } : {}),
+          workoutExercises,
         }),
       });
 
@@ -750,6 +758,7 @@ export const Plan: React.FC<PlanProps> = ({ currentUserRole }) => {
 
       setSelectedWorkout(null);
       await loadPlan();
+      window.dispatchEvent(new Event('karra:data:updated'));
     } catch (err) {
       alert(err instanceof Error ? err.message : 'No se pudo actualizar el plan');
     } finally {
@@ -1009,30 +1018,45 @@ export const Plan: React.FC<PlanProps> = ({ currentUserRole }) => {
                               </div>
 
                               <div className="grid grid-cols-3 gap-2">
-                                <input
-                                  value={exercise.sets}
-                                  onChange={(event) =>
-                                    updateWorkoutExercise(day.id, exercise.id, 'sets', event.target.value)
-                                  }
-                                  placeholder="Series"
-                                  className="bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs font-bold"
-                                />
-                                <input
-                                  value={exercise.reps}
-                                  onChange={(event) =>
-                                    updateWorkoutExercise(day.id, exercise.id, 'reps', event.target.value)
-                                  }
-                                  placeholder="Reps"
-                                  className="bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs font-bold"
-                                />
-                                <input
-                                  value={exercise.rir}
-                                  onChange={(event) =>
-                                    updateWorkoutExercise(day.id, exercise.id, 'rir', event.target.value)
-                                  }
-                                  placeholder="RIR"
-                                  className="bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs font-bold"
-                                />
+                                <label className="space-y-1">
+                                  <span className="block text-[10px] font-black uppercase tracking-wide text-slate-400">
+                                    Numero de series
+                                  </span>
+                                  <input
+                                    value={exercise.sets}
+                                    onChange={(event) =>
+                                      updateWorkoutExercise(day.id, exercise.id, 'sets', event.target.value)
+                                    }
+                                    placeholder="Series"
+                                    className="bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs font-bold"
+                                  />
+                                </label>
+                                <label className="space-y-1">
+                                  <span className="block text-[10px] font-black uppercase tracking-wide text-slate-400">
+                                    Numero de repeticiones
+                                  </span>
+                                  <input
+                                    value={exercise.reps}
+                                    onChange={(event) =>
+                                      updateWorkoutExercise(day.id, exercise.id, 'reps', event.target.value)
+                                    }
+                                    placeholder="Reps"
+                                    className="bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs font-bold"
+                                  />
+                                </label>
+                                <label className="space-y-1">
+                                  <span className="block text-[10px] font-black uppercase tracking-wide text-slate-400">
+                                    RIR
+                                  </span>
+                                  <input
+                                    value={exercise.rir}
+                                    onChange={(event) =>
+                                      updateWorkoutExercise(day.id, exercise.id, 'rir', event.target.value)
+                                    }
+                                    placeholder="RIR"
+                                    className="bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs font-bold"
+                                  />
+                                </label>
                               </div>
 
                               <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
@@ -1366,9 +1390,22 @@ const WorkoutModal = ({
   exercises: WorkoutExercise[];
   onClose: () => void;
   onOpenExercise: (exercise: WorkoutExercise) => void;
-  onMarkCompleted: () => void;
+  onMarkCompleted: (exercisePayload: WorkoutExercise[]) => void;
   isUpdating: boolean;
-}) => (
+}) => {
+  const [exerciseInputs, setExerciseInputs] = useState<WorkoutExercise[]>(exercises);
+
+  useEffect(() => {
+    setExerciseInputs(exercises);
+  }, [exercises, workout.id]);
+
+  const updateExerciseWeight = (exerciseId: string, weight: string) => {
+    setExerciseInputs((previous) =>
+      previous.map((exercise) => (exercise.id === exerciseId ? { ...exercise, weight } : exercise)),
+    );
+  };
+
+  return (
   <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
     <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto">
       <div className="bg-primary text-white p-6 relative overflow-hidden">
@@ -1388,7 +1425,7 @@ const WorkoutModal = ({
             <Clock size={16} /> {workout.duration}
           </span>
           <span className="flex items-center gap-1">
-            <Dumbbell size={16} /> {exercises.length} ejercicios
+            <Dumbbell size={16} /> {exerciseInputs.length} ejercicios
           </span>
           <span className="flex items-center gap-1">
             <Zap size={16} /> Intensidad media-alta
@@ -1406,29 +1443,61 @@ const WorkoutModal = ({
 
         <div className="space-y-3 mb-6">
           <h3 className="font-black text-sm text-slate-400 uppercase tracking-wider">Ejercicios principales</h3>
-          {exercises.length === 0 && (
+          <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 flex gap-3">
+            <div className="bg-white text-sky-700 p-2 rounded-lg border border-sky-100 h-fit">
+              <Info size={15} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-wide text-sky-900 mb-1">Que significa RIR</p>
+              <p className="text-xs text-sky-900 font-medium leading-relaxed">
+                RIR significa repeticiones en reserva: cuantas repeticiones mas podrias hacer antes del fallo tecnico.
+              </p>
+              <p className="text-xs text-sky-900/90 font-medium leading-relaxed mt-1">
+                Como calcularlo: al terminar una serie, piensa cuantas repeticiones limpias te quedaban. Si podias hacer 2 mas, tu RIR fue 2.
+              </p>
+            </div>
+          </div>
+          {exerciseInputs.length === 0 && (
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-sm text-slate-500 font-medium">
               No hay ejercicios configurados para esta sesion.
             </div>
           )}
 
-          {exercises.map((exercise, index) => (
+          {exerciseInputs.map((exercise, index) => (
             <div
               key={exercise.id}
               onClick={() => onOpenExercise(exercise)}
-              className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-primary/30 hover:bg-primary/5 cursor-pointer transition-colors group"
+              className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-primary/30 hover:bg-primary/5 cursor-pointer transition-colors group space-y-2"
             >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="bg-white p-2 rounded-lg text-primary shadow-sm border border-slate-100 group-hover:border-primary/20">
-                  <Info size={16} />
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="bg-white p-2 rounded-lg text-primary shadow-sm border border-slate-100 group-hover:border-primary/20">
+                    <Info size={16} />
+                  </div>
+                  <span className="font-bold text-text group-hover:text-primary transition-colors truncate">
+                    {index + 1}. {exercise.name}
+                  </span>
                 </div>
-                <span className="font-bold text-text group-hover:text-primary transition-colors truncate">
-                  {index + 1}. {exercise.name}
+                <span className="text-xs text-slate-500 font-black text-right whitespace-nowrap">
+                  {exercise.sets} x {exercise.reps} - RIR {exercise.rir}
                 </span>
               </div>
-              <span className="text-xs text-slate-500 font-black text-right whitespace-nowrap">
-                {exercise.sets} x {exercise.reps} - RIR {exercise.rir}
-              </span>
+              <div
+                className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <label className="space-y-1">
+                  <span className="block text-[10px] font-black uppercase tracking-wide text-slate-400">
+                    Peso usado (kg) - opcional
+                  </span>
+                  <input
+                    value={exercise.weight}
+                    onChange={(event) => updateExerciseWeight(exercise.id, event.target.value)}
+                    placeholder="Ej. 80 o 22.5"
+                    className="w-full bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs font-bold"
+                  />
+                </label>
+              </div>
             </div>
           ))}
         </div>
@@ -1442,7 +1511,7 @@ const WorkoutModal = ({
           </button>
         ) : (
           <button
-            onClick={onMarkCompleted}
+            onClick={() => onMarkCompleted(exerciseInputs)}
             disabled={isUpdating}
             className="w-full bg-secondary text-white py-3 rounded-xl font-black text-lg shadow-lg shadow-secondary/20 hover:bg-secondary/90 flex items-center justify-center gap-2 transition-transform active:scale-95 uppercase italic tracking-wide disabled:opacity-70"
           >
@@ -1452,4 +1521,5 @@ const WorkoutModal = ({
       </div>
     </div>
   </div>
-);
+  );
+};
