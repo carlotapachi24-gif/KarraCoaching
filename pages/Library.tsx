@@ -61,6 +61,15 @@ const defaultMediaByTitle: Record<string, string> = {
   'toes to bar': '/toes-to-bar.gif',
   'dead bug': '/dead-bug.gif',
   'ab wheel': '/ab-wheel.gif',
+  'curl concentrado': '/curl-concentrado.gif',
+  'curl martillo': '/curl-martillo.gif',
+  'fondos': '/fondos.gif',
+  'extension en polea': '/extension-en-polea.gif',
+  'extension por encima de la cabeza': '/extension-por-encima-de-la-cabeza.gif',
+  'press frances': '/press-frances.gif',
+  'press inclinado': '/press-inclinado.gif',
+  'press militar': '/press-militar.gif',
+  
 };
 
 const isVideoFile = (url: string) => /\.(mp4|webm|ogg)(\?.*)?$/i.test(url);
