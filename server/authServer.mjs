@@ -90,13 +90,10 @@ const librarySeedCatalog = [
   { title: 'Press frances', category: 'Empuje', muscle: 'Triceps', description: 'Bajar controlado hacia frente, codos estables y subir sin abrirlos en exceso.' },
 
   { title: 'Plancha frontal', category: 'Core', muscle: 'Core', description: 'Linea recta cabeza-cadera-talones, abdomen firme y respiracion controlada.' },
-  { title: 'Dead bug', category: 'Core', muscle: 'Core', description: 'Zona lumbar estable, mover brazos y piernas alternos sin perder control.' },
   { title: 'Ab wheel', category: 'Core', muscle: 'Core', description: 'Iniciar corto, gluteos activos y evitar hundir la zona lumbar.' },
-  { title: 'Pallof press', category: 'Core', muscle: 'Oblicuos', description: 'Resistir rotacion, brazos extendidos y pelvis estable durante la ejecucion.' },
   { title: 'Plancha lateral', category: 'Core', muscle: 'Oblicuos', description: 'Cuerpo alineado, cadera alta y apoyo firme en antebrazo y pies.' },
   { title: 'Crunch', category: 'Core', muscle: 'Recto abdominal', description: 'Elevar torax con control, sin tirar del cuello y exhalando al subir.' },
   { title: 'Elevaciones de piernas', category: 'Core', muscle: 'Abdominal inferior', description: 'Lumbar pegada, subir piernas sin impulso y bajar lentamente.' },
-  { title: 'Toes to bar', category: 'Core', muscle: 'Core', description: 'Iniciar con balance minimo, elevar piernas activando abdomen y controlar bajada.' },
 ];
 
 function buildSeedLibraryResources() {
