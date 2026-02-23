@@ -50,7 +50,8 @@ const defaultMediaByTitle: Record<string, string> = {
   'sentadilla': '/sentadilla.gif',
   'dominadas supinas': '/dominada-supina.gif',
   'dominadas neutras': '/dominada-neutra.gif',
-  'prensa inclinada': '/prensa-inclinada.gif',
+  'prensa inclinada': '/prensa.gif',
+  'prensa': '/prensa.gif',
   'plancha frontal': '/plancha.gif',
   'plancha lateral': '/plancha-lateral.gif',
   'crunch': '/crunch.gif',
@@ -68,6 +69,7 @@ const defaultMediaByTitle: Record<string, string> = {
   'press militar': '/press-militar.gif',
   'elevaciones laterales': '/elevaciones-laterales.gif',
   'pájaros con mancuerna': '/pajaros.gif',
+  'pajaros con mancuerna': '/pajaros.gif',
   'push press': '/push-press.gif',
   'zancadas caminando': '/zancadas-caminando.gif',
 

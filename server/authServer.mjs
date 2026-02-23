@@ -152,7 +152,7 @@ const defaultResourceVideoUrlByKey = new Map([
   [normalizeResourceKey('extension en polea'), '/extension-polea.gif'],
   [normalizeResourceKey('extension por encima de la cabeza'), '/extension-cabeza.gif'],
   [normalizeResourceKey('fondos'), '/fondos.gif'],
-  [normalizeResourceKey('plancha frontal'), '/plancha-frontal.gif'],
+  [normalizeResourceKey('plancha frontal'), '/plancha.gif'],
   [normalizeResourceKey('ab wheel'), '/ab-wheel.gif'],
   [normalizeResourceKey('plancha lateral'), '/plancha-lateral.gif'],
   [normalizeResourceKey('crunch'), '/crunch.gif'],
@@ -171,9 +171,10 @@ const defaultResourceVideoUrlByKey = new Map([
   [normalizeResourceKey('Dominadas supinas'), '/dominada-supina.gif'],
   [normalizeResourceKey('Elevaciones laterales'), '/elevaciones-laterales.gif'],
   [normalizeResourceKey('pájaros'), '/pajaros.gif'],
+  [normalizeResourceKey('pajaros con mancuerna'), '/pajaros.gif'],
   [normalizeResourceKey('push press'), '/push-press.gif'],
   [normalizeResourceKey('zancadas caminando'), '/zancadas-caminando.gif'],
-  [normalizeResourceKey('prensa'), '/prensa-inclinada.gif'],
+  [normalizeResourceKey('prensa'), '/prensa.gif'],
 
 
   
@@ -188,6 +189,8 @@ function normalizeResourceVideoUrl(videoUrl) {
   if (!normalized) return '';
   if (normalized === '/aperturas-com-mancuernas.gif') return '/aperturas-con-mancuernas.gif';
   if (normalized === '/cruce de poleas.gif') return '/cruce-de-poleas.gif';
+  if (normalized === '/plancha-frontal.gif') return '/plancha.gif';
+  if (normalized === '/prensa-inclinada.gif') return '/prensa.gif';
   return normalized;
 }
 
