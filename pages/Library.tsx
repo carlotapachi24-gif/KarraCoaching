@@ -60,6 +60,7 @@ const defaultMediaByTitle: Record<string, string> = {
   'ab wheel': '/ab-wheel.gif',
   'curl concentrado': '/curl-concentrado.gif',
   'curl martillo': '/curl-martillo.gif',
+  'curl con barra': '/curl-barra.gif',
   'fondos': '/fondos.gif',
   'extension en polea': '/extension-en-polea.gif',
   'extension por encima de la cabeza': '/extension-por-encima-de-la-cabeza.gif',
