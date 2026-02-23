@@ -98,20 +98,32 @@ const librarySeedCatalog = [
 
 function buildSeedLibraryResources() {
   const createdAt = new Date().toISOString();
-  return librarySeedCatalog.map((item) => ({
-    id: randomUUID(),
-    title: item.title,
-    category: item.category,
-    muscle: item.muscle,
-    description: item.description,
-    videoUrl: defaultVideoUrlForResource(item.title),
-    createdAt,
-    createdBy: COACH_EMAIL,
-  }));
+  return librarySeedCatalog
+    .filter((item) => !isExcludedLibraryResourceTitle(item.title))
+    .map((item) => ({
+      id: randomUUID(),
+      title: item.title,
+      category: item.category,
+      muscle: item.muscle,
+      description: item.description,
+      videoUrl: defaultVideoUrlForResource(item.title),
+      createdAt,
+      createdBy: COACH_EMAIL,
+    }));
 }
 
 function normalizeResourceKey(title) {
   return String(title || '').trim().toLowerCase();
+}
+
+const excludedLibraryResourceKeys = new Set([
+  normalizeResourceKey('Pallof press'),
+  normalizeResourceKey('Toes to bar'),
+  normalizeResourceKey('Dead bug'),
+]);
+
+function isExcludedLibraryResourceTitle(title) {
+  return excludedLibraryResourceKeys.has(normalizeResourceKey(title));
 }
 
 const defaultResourceVideoUrlByKey = new Map([
@@ -123,7 +135,6 @@ const defaultResourceVideoUrlByKey = new Map([
   [normalizeResourceKey('Fondos en paralelas'), '/fondos-paralelas.gif'],
   [normalizeResourceKey('Press banca inclinado'), '/press-banca-inclinado.gif'],
   [normalizeResourceKey('Pullover con mancuerna'), '/pullover-mancuerna.gif'],
-  [normalizeResourceKey('Sentadillaress-banca-inclinado.gif'],
   [normalizeResourceKey('sentadilla'), '/sentadilla.gif'],
   [normalizeResourceKey('remo'), '/remo.gif'],
   [normalizeResourceKey('peso muerto'), '/peso-muerto.gif'],
@@ -169,7 +180,9 @@ function normalizeResourceVideoUrl(videoUrl) {
 }
 
 function mergeLibrarySeedResources(existingResources) {
-  const safeResources = Array.isArray(existingResources) ? [...existingResources] : [];
+  const safeResources = Array.isArray(existingResources)
+    ? existingResources.filter((resource) => !isExcludedLibraryResourceTitle(resource?.title))
+    : [];
   const existingKeys = new Set();
 
   safeResources.forEach((resource) => {
@@ -189,7 +202,7 @@ function mergeLibrarySeedResources(existingResources) {
 
   for (const seed of librarySeedCatalog) {
     const key = normalizeResourceKey(seed.title);
-    if (!key || existingKeys.has(key)) {
+    if (!key || existingKeys.has(key) || isExcludedLibraryResourceTitle(seed.title)) {
       continue;
     }
 
