@@ -209,7 +209,7 @@ export const Library: React.FC<LibraryProps> = ({ isEmbedded = false, readOnly =
         <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in flex flex-col">
             <div className="aspect-video bg-slate-900 relative">
-              <ResourceMedia resource={selectedResource} className="w-full h-full object-cover opacity-70" />
+              <ResourceMedia resource={selectedResource} className="w-full h-full object-cover" />
               <button onClick={() => setSelectedResource(null)} className="absolute top-4 right-4 bg-black/40 text-white p-2 rounded-full hover:bg-black/60 transition-colors">
                 <X size={20} />
               </button>
