@@ -55,7 +55,6 @@ const defaultMediaByTitle: Record<string, string> = {
   'plancha lateral': '/plancha-lateral.gif',
   'crunch': '/crunch.gif',
   'elevaciones de piernas': '/elevaciones-piernas.gif',
-  'toes to bar': '/toes-to-bar.gif',
   'crunch': '/crunch.gif',
   'ab wheel': '/ab-wheel.gif',
   'curl concentrado': '/curl-concentrado.gif',
