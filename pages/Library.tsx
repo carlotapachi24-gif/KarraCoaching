@@ -48,7 +48,6 @@ const defaultMediaByTitle: Record<string, string> = {
   'press militar': '/press-militar.gif',
   'remo': '/remo.gif',
   'sentadilla': '/sentadilla.gif',
-  'pallof press': '/pallof-press.gif',
   'dominadas supinas': '/dominada-supina.gif',
   'dominadas neutras': '/dominada-neutra.gif',
   'prensa inclinada': '/prensa-inclinada.gif',
@@ -58,8 +57,6 @@ const defaultMediaByTitle: Record<string, string> = {
   'elevaciones de piernas': '/elevaciones-piernas.gif',
   'toes to bar': '/toes-to-bar.gif',
   'crunch': '/crunch.gif',
-  'toes to bar': '/toes-to-bar.gif',
-  'dead bug': '/dead-bug.gif',
   'ab wheel': '/ab-wheel.gif',
   'curl concentrado': '/curl-concentrado.gif',
   'curl martillo': '/curl-martillo.gif',
@@ -69,7 +66,7 @@ const defaultMediaByTitle: Record<string, string> = {
   'press frances': '/press-frances.gif',
   'press inclinado': '/press-inclinado.gif',
   'press militar': '/press-militar.gif',
-  
+
 };
 
 const isVideoFile = (url: string) => /\.(mp4|webm|ogg)(\?.*)?$/i.test(url);
