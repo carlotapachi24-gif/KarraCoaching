@@ -65,21 +65,18 @@ const librarySeedCatalog = [
   { title: 'Hip thrust', category: 'Cadena posterior', muscle: 'Gluteo', description: 'Menton recogido, pelvis neutra y extension completa de cadera sin hiperextender espalda.' },
 
   { title: 'Sentadilla', category: 'Pierna', muscle: 'Cuadriceps', description: 'Pies firmes, rodillas siguiendo puntas y profundidad segun movilidad sin perder tecnica.' },
-  { title: 'Prensa horizontal', category: 'Pierna', muscle: 'Cuadriceps', description: 'Lumbar pegada al respaldo, bajada controlada y empuje completo sin bloquear rodillas.' },
-  { title: 'V-Squat', category: 'Pierna', muscle: 'Cuadriceps', description: 'Torso estable, recorrido consistente y peso distribuido en toda la planta del pie.' },
+  { title: 'Prensa', category: 'Pierna', muscle: 'Cuadriceps', description: 'Lumbar pegada al respaldo, bajada controlada y empuje completo sin bloquear rodillas.' },
   { title: 'Hack squat', category: 'Pierna', muscle: 'Cuadriceps', description: 'Bajada profunda controlada, rodillas alineadas y subida continua sin rebote.' },
   { title: 'Zancadas caminando', category: 'Pierna', muscle: 'Cuadriceps y gluteo', description: 'Paso largo estable, tronco recto y control de la rodilla delantera.' },
   { title: 'Bulgaras', category: 'Pierna', muscle: 'Cuadriceps y gluteo', description: 'Pie trasero apoyado, cadera cuadrada y descenso vertical sin perder equilibrio.' },
   { title: 'Extension de cuadriceps', category: 'Pierna', muscle: 'Cuadriceps', description: 'Controlar subida y bajada, evitar impulso y mantener alineacion de rodilla.' },
   { title: 'Curl femoral', category: 'Pierna', muscle: 'Isquios', description: 'Cadera estable, talones hacia gluteos y descenso lento para mantener tension.' },
-  { title: 'Puente de gluteo', category: 'Pierna', muscle: 'Gluteo', description: 'Empuje desde talones, abdomen activo y pausa arriba sin arquear la espalda.' },
   { title: 'Elevacion de talones', category: 'Pierna', muscle: 'Gemelos', description: 'Subida completa en puntas, pausa corta arriba y bajada lenta y controlada.' },
 
   { title: 'Press militar', category: 'Empuje', muscle: 'Hombro', description: 'Gluteos y abdomen activos, barra en linea recta y bloqueo estable sobre cabeza.' },
   { title: 'Push press', category: 'Empuje', muscle: 'Hombro', description: 'Pequena flexion de rodillas, transferir fuerza y finalizar con control overhead.' },
   { title: 'Elevaciones laterales', category: 'Empuje', muscle: 'Deltoide lateral', description: 'Brazos semiflexionados, elevar hasta linea de hombro sin balancear tronco.' },
   { title: 'Pajaros con mancuerna', category: 'Tiron', muscle: 'Deltoide posterior', description: 'Cadera en bisagra, cuello neutro y apertura lateral sin impulso.' },
-  { title: 'Face pull', category: 'Tiron', muscle: 'Deltoide posterior', description: 'Tirar hacia la cara, codos altos y escpulas activas en cada repeticion.' },
 
   { title: 'Curl con barra', category: 'Tiron', muscle: 'Biceps', description: 'Codos pegados al torso, subida limpia y bajar sin perder tension.' },
   { title: 'Curl martillo', category: 'Tiron', muscle: 'Biceps y braquial', description: 'Agarre neutro, munecas firmes y codos estables durante todo el rango.' },
@@ -120,10 +117,19 @@ const excludedLibraryResourceKeys = new Set([
   normalizeResourceKey('Pallof press'),
   normalizeResourceKey('Toes to bar'),
   normalizeResourceKey('Dead bug'),
+  normalizeResourceKey('Face pull'),
+  normalizeResourceKey('Puente de gluteo'),
 ]);
 
 function isExcludedLibraryResourceTitle(title) {
   return excludedLibraryResourceKeys.has(normalizeResourceKey(title));
+}
+
+function normalizeLibraryResourceTitle(title) {
+  const key = normalizeResourceKey(title);
+  if (key === normalizeResourceKey('Prensa horizontal')) return 'Prensa';
+  if (key === normalizeResourceKey('V-Squat')) return 'Prensa';
+  return String(title || '').trim();
 }
 
 const defaultResourceVideoUrlByKey = new Map([
@@ -167,7 +173,7 @@ const defaultResourceVideoUrlByKey = new Map([
   [normalizeResourceKey('pájaros'), '/pajaros.gif'],
   [normalizeResourceKey('push press'), '/push-press.gif'],
   [normalizeResourceKey('zancadas caminando'), '/zancadas-caminando.gif'],
-  [normalizeResourceKey('v-squatdominada-supina.gif'],
+  [normalizeResourceKey('prensa'), '/prensa-inclinada.gif'],
 
 
   
@@ -190,10 +196,13 @@ function mergeLibrarySeedResources(existingResources) {
     ? existingResources.filter((resource) => !isExcludedLibraryResourceTitle(resource?.title))
     : [];
   const existingKeys = new Set();
+  const dedupedResources = [];
 
   safeResources.forEach((resource) => {
+    resource.title = normalizeLibraryResourceTitle(resource?.title);
     const key = normalizeResourceKey(resource?.title);
     if (!key) return;
+    if (existingKeys.has(key)) return;
     existingKeys.add(key);
 
     resource.videoUrl = normalizeResourceVideoUrl(resource?.videoUrl);
@@ -204,28 +213,30 @@ function mergeLibrarySeedResources(existingResources) {
         resource.videoUrl = fallbackVideoUrl;
       }
     }
+    dedupedResources.push(resource);
   });
 
   for (const seed of librarySeedCatalog) {
-    const key = normalizeResourceKey(seed.title);
+    const normalizedSeedTitle = normalizeLibraryResourceTitle(seed.title);
+    const key = normalizeResourceKey(normalizedSeedTitle);
     if (!key || existingKeys.has(key) || isExcludedLibraryResourceTitle(seed.title)) {
       continue;
     }
 
-    safeResources.push({
+    dedupedResources.push({
       id: randomUUID(),
-      title: seed.title,
+      title: normalizedSeedTitle,
       category: seed.category,
       muscle: seed.muscle,
       description: seed.description,
-      videoUrl: defaultVideoUrlForResource(seed.title),
+      videoUrl: defaultVideoUrlForResource(normalizedSeedTitle),
       createdAt: nowIso(),
       createdBy: COACH_EMAIL,
     });
     existingKeys.add(key);
   }
 
-  return safeResources;
+  return dedupedResources;
 }
 
 function parseClientCredentials(rawValue) {
