@@ -163,6 +163,12 @@ const defaultResourceVideoUrlByKey = new Map([
   [normalizeResourceKey('jalon al pecho'), '/jalon-al-pecho.gif'],
   [normalizeResourceKey('Dominadas neutras'), '/dominada-neutra.gif'],
   [normalizeResourceKey('Dominadas supinas'), '/dominada-supina.gif'],
+  [normalizeResourceKey('Elevaciones laterales'), '/elevaciones-laterales.gif'],
+  [normalizeResourceKey('pájaros'), '/pajaros.gif'],
+  [normalizeResourceKey('push press'), '/push-press.gif'],
+  [normalizeResourceKey('zancadas caminando'), '/zancadas-caminando.gif'],
+  [normalizeResourceKey('v-squatdominada-supina.gif'],
+
 
   
 ]);

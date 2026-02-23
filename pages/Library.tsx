@@ -66,6 +66,10 @@ const defaultMediaByTitle: Record<string, string> = {
   'press frances': '/press-frances.gif',
   'press inclinado': '/press-inclinado.gif',
   'press militar': '/press-militar.gif',
+  'elevaciones laterales': '/elevaciones-laterales.gif',
+  'pájaros': '/pajaros.gif',
+  'push press': '/push-press.gif',
+  'zancadas caminando': '/zancadas-caminando.gif',
 
 };
 
