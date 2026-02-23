@@ -156,6 +156,10 @@ const defaultResourceVideoUrlByKey = new Map([
   [normalizeResourceKey('puente de gluteo'), '/puente-gluteo.gif'],
   [normalizeResourceKey('elevacion de talones'), '/elevacion-talones.gif'],
   [normalizeResourceKey('jalon al pecho'), '/jalon-al-pecho.gif'],
+  [normalizeResourceKey('Dominadas neutras'), '/dominada-neutra.gif'],
+  [normalizeResourceKey('Dominadas supinas'), '/dominada-supina.gif'],
+
+  
 ]);
 
 function defaultVideoUrlForResource(title) {
