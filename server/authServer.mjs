@@ -8,6 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 const distDir = path.join(projectRoot, 'dist');
+const publicDir = path.join(projectRoot, 'public');
 const dataDir = path.join(__dirname, 'data');
 const dataPath = path.join(dataDir, 'store.json');
 
@@ -191,6 +192,8 @@ function normalizeResourceVideoUrl(videoUrl) {
   if (normalized === '/cruce de poleas.gif') return '/cruce-de-poleas.gif';
   if (normalized === '/plancha-frontal.gif') return '/plancha.gif';
   if (normalized === '/prensa-inclinada.gif') return '/prensa.gif';
+  if (normalized === '/prensa-horizontal.gif') return '/prensa.gif';
+  if (normalized === '/v-squat.gif') return '/prensa.gif';
   return normalized;
 }
 
@@ -2260,6 +2263,7 @@ async function handleApi(req, res, requestUrl) {
 async function serveStatic(res, pathname) {
   const relativePath = pathname === '/' ? '/index.html' : pathname;
   const targetPath = path.normalize(path.join(distDir, relativePath));
+  const publicPath = path.normalize(path.join(publicDir, relativePath));
 
   if (!targetPath.startsWith(distDir)) {
     res.writeHead(403);
@@ -2275,6 +2279,19 @@ async function serveStatic(res, pathname) {
     });
     res.end(file);
   } catch {
+    if (publicPath.startsWith(publicDir)) {
+      try {
+        const publicFile = await readFile(publicPath);
+        const extension = path.extname(publicPath).toLowerCase();
+        res.writeHead(200, {
+          'Content-Type': contentTypes[extension] || 'application/octet-stream',
+        });
+        res.end(publicFile);
+        return;
+      } catch {
+      }
+    }
+
     try {
       const indexFile = await readFile(path.join(distDir, 'index.html'));
       res.writeHead(200, {
