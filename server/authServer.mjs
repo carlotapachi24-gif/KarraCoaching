@@ -3,6 +3,7 @@ import { createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } from
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { constants as zlibConstants, brotliCompressSync, gzipSync } from 'node:zlib';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -46,6 +47,18 @@ const contentTypes = {
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
 };
+
+const compressibleExtensions = new Set([
+  '.html',
+  '.js',
+  '.css',
+  '.json',
+  '.svg',
+  '.txt',
+  '.map',
+]);
+
+const compressedStaticCache = new Map();
 
 const librarySeedCatalog = [
   { title: 'Press banca plano', category: 'Empuje', muscle: 'Pecho', description: 'Escapulas retraidas, pies firmes y barra al pecho medio con recorrido controlado.' },
@@ -1592,6 +1605,7 @@ async function handleApi(req, res, requestUrl) {
 
     const email = normalizeEmail(body.email);
     const password = String(body.password || '');
+    let didMutateStore = false;
 
     if (!email || !password || !email.includes('@')) {
       return json(req, res, 400, { message: 'Correo y contrasena obligatorios' });
@@ -1621,14 +1635,17 @@ async function handleApi(req, res, requestUrl) {
         }
         if (!storedClientPassword) {
           existingUser.password = hashPassword(password);
+          didMutateStore = true;
         }
       } else if (envPassword) {
         if (envPassword !== password) {
           return json(req, res, 401, { message: 'Credenciales incorrectas' });
         }
         ensureClientRecords(email, { password: envPassword });
+        didMutateStore = true;
       } else if (ALLOW_OPEN_CLIENT_LOGIN && envClientCredentials.size === 0) {
         ensureClientRecords(email, { password });
+        didMutateStore = true;
       } else {
         return json(req, res, 401, { message: 'Credenciales incorrectas' });
       }
@@ -1651,7 +1668,17 @@ async function handleApi(req, res, requestUrl) {
       expiresAt: Date.now() + SESSION_TTL_MS,
     });
 
-    await persistStore();
+    if (didMutateStore) {
+      await persistStore();
+    }
+
+    if (user.role === 'CLIENT') {
+      const profile =
+        store.profiles[user.email] ||
+        buildDefaultProfile(user.email, finalUserRecord.name || displayNameFromEmail(user.email));
+      return json(req, res, 200, { user, token, profile });
+    }
+
     return json(req, res, 200, { user, token });
   }
 
@@ -1660,6 +1687,18 @@ async function handleApi(req, res, requestUrl) {
     if (!session) {
       return json(req, res, 401, { message: 'No autenticado' });
     }
+
+    if (session.user.role === 'CLIENT') {
+      const userRecord = getClientUser(session.user.email);
+      const profile =
+        store.profiles[session.user.email] ||
+        buildDefaultProfile(session.user.email, userRecord?.name || displayNameFromEmail(session.user.email));
+      return json(req, res, 200, {
+        user: session.user,
+        profile,
+      });
+    }
+
     return json(req, res, 200, { user: session.user });
   }
 
@@ -2431,10 +2470,86 @@ async function handleApi(req, res, requestUrl) {
   return json(req, res, 404, { message: 'Not found' });
 }
 
-async function serveStatic(res, pathname) {
+function cacheControlForStaticPath(pathname, extension, source = 'dist') {
+  if (extension === '.html') {
+    return 'no-cache';
+  }
+
+  if (pathname.startsWith('/assets/')) {
+    return 'public, max-age=31536000, immutable';
+  }
+
+  if (source === 'public') {
+    return 'public, max-age=604800';
+  }
+
+  return 'public, max-age=300';
+}
+
+function chooseCompression(acceptEncoding, extension) {
+  if (!compressibleExtensions.has(extension)) {
+    return null;
+  }
+
+  const value = String(acceptEncoding || '').toLowerCase();
+  if (value.includes('br')) return 'br';
+  if (value.includes('gzip')) return 'gzip';
+  return null;
+}
+
+function compressStaticPayload(cacheKey, payload, encoding) {
+  const cached = compressedStaticCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  let compressed = payload;
+  if (encoding === 'br') {
+    compressed = brotliCompressSync(payload, {
+      params: {
+        [zlibConstants.BROTLI_PARAM_QUALITY]: 4,
+      },
+    });
+  } else if (encoding === 'gzip') {
+    compressed = gzipSync(payload, { level: 6 });
+  }
+
+  compressedStaticCache.set(cacheKey, compressed);
+  return compressed;
+}
+
+async function serveStatic(req, res, pathname) {
   const relativePath = pathname === '/' ? '/index.html' : pathname;
   const targetPath = path.normalize(path.join(distDir, relativePath));
   const publicPath = path.normalize(path.join(publicDir, relativePath));
+
+  const sendStaticFile = (filePath, fileContents, source) => {
+    const extension = path.extname(filePath).toLowerCase();
+    const contentType = contentTypes[extension] || 'application/octet-stream';
+    const cacheControl = cacheControlForStaticPath(pathname, extension, source);
+    const compression = chooseCompression(req.headers['accept-encoding'], extension);
+
+    let responseBody = fileContents;
+    const headers = {
+      'Content-Type': contentType,
+      'Cache-Control': cacheControl,
+    };
+
+    if (compression) {
+      const cacheKey = `${filePath}:${compression}`;
+      responseBody = compressStaticPayload(cacheKey, fileContents, compression);
+      headers['Content-Encoding'] = compression;
+      headers.Vary = 'Accept-Encoding';
+    }
+
+    headers['Content-Length'] = String(responseBody.length);
+    res.writeHead(200, headers);
+    if (req.method === 'HEAD') {
+      res.end();
+      return;
+    }
+    res.end(responseBody);
+  };
 
   if (!targetPath.startsWith(distDir)) {
     res.writeHead(403);
@@ -2444,20 +2559,12 @@ async function serveStatic(res, pathname) {
 
   try {
     const file = await readFile(targetPath);
-    const extension = path.extname(targetPath).toLowerCase();
-    res.writeHead(200, {
-      'Content-Type': contentTypes[extension] || 'application/octet-stream',
-    });
-    res.end(file);
+    sendStaticFile(targetPath, file, 'dist');
   } catch {
     if (publicPath.startsWith(publicDir)) {
       try {
         const publicFile = await readFile(publicPath);
-        const extension = path.extname(publicPath).toLowerCase();
-        res.writeHead(200, {
-          'Content-Type': contentTypes[extension] || 'application/octet-stream',
-        });
-        res.end(publicFile);
+        sendStaticFile(publicPath, publicFile, 'public');
         return;
       } catch {
       }
@@ -2465,10 +2572,7 @@ async function serveStatic(res, pathname) {
 
     try {
       const indexFile = await readFile(path.join(distDir, 'index.html'));
-      res.writeHead(200, {
-        'Content-Type': 'text/html; charset=utf-8',
-      });
-      res.end(indexFile);
+      sendStaticFile(path.join(distDir, 'index.html'), indexFile, 'dist');
     } catch {
       res.writeHead(500, {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -2501,7 +2605,7 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  await serveStatic(res, requestUrl.pathname);
+  await serveStatic(req, res, requestUrl.pathname);
 });
 
 server.listen(PORT, '0.0.0.0', () => {

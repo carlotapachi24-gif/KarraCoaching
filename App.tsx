@@ -13,17 +13,94 @@ interface AuthUser {
 
 interface SessionResponse {
   user: AuthUser;
+  profile?: ClientProfileData;
 }
 
 interface LoginResponse extends SessionResponse {
   token: string;
+  profile?: ClientProfileData;
 }
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
+const AUTH_USER_STORAGE_KEY = 'karra_auth_user';
+const PROFILE_CACHE_PREFIX = 'karra_profile_cache:';
+const REQUEST_TIMEOUT_MS = 4500;
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const IS_GITHUB_PAGES = window.location.hostname.endsWith('github.io');
 
 const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
+const normalizeEmail = (email: string) => String(email || '').trim().toLowerCase();
+
+const fetchWithTimeout = async (url: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS) => {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+};
+
+const safeJsonParse = <T,>(value: string | null): T | null => {
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
+};
+
+const readCachedUser = (): AuthUser | null => {
+  const cached = safeJsonParse<{ email?: string; role?: string }>(
+    window.localStorage.getItem(AUTH_USER_STORAGE_KEY),
+  );
+  const email = normalizeEmail(cached?.email || '');
+  const role = String(cached?.role || '').toUpperCase();
+  if (!email || (role !== UserRole.CLIENT && role !== UserRole.COACH)) {
+    return null;
+  }
+  return {
+    email,
+    role: role as UserRole,
+  };
+};
+
+const writeCachedUser = (user: AuthUser) => {
+  window.localStorage.setItem(
+    AUTH_USER_STORAGE_KEY,
+    JSON.stringify({
+      email: normalizeEmail(user.email),
+      role: user.role,
+    }),
+  );
+};
+
+const clearCachedUser = () => {
+  window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+};
+
+const profileCacheKey = (email: string) => `${PROFILE_CACHE_PREFIX}${normalizeEmail(email)}`;
+
+const readCachedProfile = (email: string): ClientProfileData | null => {
+  const cached = safeJsonParse<ClientProfileData>(
+    window.localStorage.getItem(profileCacheKey(email)),
+  );
+  if (!cached || typeof cached !== 'object') {
+    return null;
+  }
+  return cached;
+};
+
+const writeCachedProfile = (email: string, profile: ClientProfileData) => {
+  window.localStorage.setItem(profileCacheKey(email), JSON.stringify(profile));
+};
+
+const clearCachedProfile = (email: string) => {
+  window.localStorage.removeItem(profileCacheKey(email));
+};
 
 const DashboardClient = lazy(() =>
   import('./pages/DashboardClient').then((module) => ({ default: module.DashboardClient })),
@@ -84,41 +161,62 @@ function App() {
 
   const loadProfile = useCallback(
     async (email: string) => {
+      const normalizedEmail = normalizeEmail(email);
       const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+      const fallbackProfile = buildDefaultProfile(normalizedEmail);
+      const cachedProfile = readCachedProfile(normalizedEmail);
+
+      if (cachedProfile) {
+        setClientProfile({
+          ...fallbackProfile,
+          ...cachedProfile,
+          email: normalizedEmail,
+        });
+      }
+
       if (!token) {
-        setClientProfile(buildDefaultProfile(email));
+        if (!cachedProfile) {
+          setClientProfile(fallbackProfile);
+        }
         return;
       }
 
       try {
-        const response = await fetch(apiUrl('/api/profile'), {
+        const response = await fetchWithTimeout(apiUrl('/api/profile'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!response.ok) {
-          setClientProfile(buildDefaultProfile(email));
+          if (!cachedProfile) {
+            setClientProfile(fallbackProfile);
+          }
           return;
         }
 
         const data = (await response.json()) as { profile: ClientProfileData };
-        setClientProfile({
-          ...buildDefaultProfile(email),
+        const resolvedProfile = {
+          ...fallbackProfile,
           ...data.profile,
-          email,
-        });
+          email: normalizedEmail,
+        };
+        setClientProfile(resolvedProfile);
+        writeCachedProfile(normalizedEmail, resolvedProfile);
       } catch {
-        setClientProfile(buildDefaultProfile(email));
+        if (!cachedProfile) {
+          setClientProfile(fallbackProfile);
+        }
       }
     },
     [buildDefaultProfile],
   );
 
   const saveProfile = useCallback(async (email: string, profile: ClientProfileData) => {
+    const normalizedEmail = normalizeEmail(email);
     const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
     if (!token) {
       throw new Error('Sesion expirada');
     }
 
-    const response = await fetch(apiUrl('/api/profile'), {
+    const response = await fetchWithTimeout(apiUrl('/api/profile'), {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -133,24 +231,33 @@ function App() {
     }
 
     const data = (await response.json()) as { profile: ClientProfileData };
-    setClientProfile({
-      ...buildDefaultProfile(email),
+    const resolvedProfile = {
+      ...buildDefaultProfile(normalizedEmail),
       ...data.profile,
-      email,
-    });
+      email: normalizedEmail,
+    };
+    setClientProfile(resolvedProfile);
+    writeCachedProfile(normalizedEmail, resolvedProfile);
   }, [buildDefaultProfile]);
 
   const fetchSession = useCallback(async () => {
     const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+    const cachedUser = readCachedUser();
+
+    if (cachedUser) {
+      setUser(cachedUser);
+      setIsLoadingSession(false);
+    }
 
     if (!token) {
+      clearCachedUser();
       setUser(null);
       setIsLoadingSession(false);
       return;
     }
 
     try {
-      const response = await fetch(apiUrl('/api/session'), {
+      const response = await fetchWithTimeout(apiUrl('/api/session'), {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -158,19 +265,40 @@ function App() {
       });
 
       if (!response.ok) {
-        window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-        setUser(null);
+        if (response.status === 401 || response.status === 403) {
+          window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+          clearCachedUser();
+          setUser(null);
+        } else if (!cachedUser) {
+          setUser(null);
+        }
         return;
       }
 
       const sessionData = (await response.json()) as SessionResponse;
       setUser(sessionData.user);
+      writeCachedUser(sessionData.user);
+
+      if (sessionData.user.role === UserRole.CLIENT && sessionData.profile) {
+        const normalizedEmail = normalizeEmail(sessionData.user.email);
+        const resolvedProfile = {
+          ...buildDefaultProfile(normalizedEmail),
+          ...sessionData.profile,
+          email: normalizedEmail,
+        };
+        setClientProfile(resolvedProfile);
+        writeCachedProfile(normalizedEmail, resolvedProfile);
+      }
     } catch {
-      setUser(null);
+      if (!cachedUser) {
+        setUser(null);
+      }
     } finally {
-      setIsLoadingSession(false);
+      if (!cachedUser) {
+        setIsLoadingSession(false);
+      }
     }
-  }, []);
+  }, [buildDefaultProfile]);
 
   useEffect(() => {
     fetchSession();
@@ -182,8 +310,13 @@ function App() {
       return;
     }
 
+    const normalizedEmail = normalizeEmail(user.email);
+    if (clientProfile && normalizeEmail(clientProfile.email) === normalizedEmail) {
+      return;
+    }
+
     loadProfile(user.email);
-  }, [loadProfile, user]);
+  }, [clientProfile, loadProfile, user]);
 
   const handleLogin = async (email: string, password: string) => {
     if (IS_GITHUB_PAGES && !API_BASE) {
@@ -191,7 +324,7 @@ function App() {
     }
 
     try {
-      const response = await fetch(apiUrl('/api/login'), {
+      const response = await fetchWithTimeout(apiUrl('/api/login'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -220,6 +353,18 @@ function App() {
       const loginData = (await response.json()) as LoginResponse;
       window.localStorage.setItem(TOKEN_STORAGE_KEY, loginData.token);
       setUser(loginData.user);
+      writeCachedUser(loginData.user);
+
+      const normalizedEmail = normalizeEmail(loginData.user.email || email);
+      if (loginData.user.role === UserRole.CLIENT && loginData.profile) {
+        const resolvedProfile = {
+          ...buildDefaultProfile(normalizedEmail),
+          ...loginData.profile,
+          email: normalizedEmail,
+        };
+        setClientProfile(resolvedProfile);
+        writeCachedProfile(normalizedEmail, resolvedProfile);
+      }
     } catch (error) {
       if (error instanceof Error) {
         throw error;
@@ -230,10 +375,11 @@ function App() {
 
   const handleLogout = async () => {
     const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+    const cachedUser = readCachedUser() || user;
 
     try {
       if (token) {
-        await fetch(apiUrl('/api/logout'), {
+        await fetchWithTimeout(apiUrl('/api/logout'), {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
@@ -242,6 +388,11 @@ function App() {
       }
     } finally {
       window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+      clearCachedUser();
+      if (cachedUser?.role === UserRole.CLIENT) {
+        clearCachedProfile(cachedUser.email);
+      }
+      setClientProfile(null);
       setUser(null);
     }
   };
