@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { createHmac, randomUUID } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,12 +14,13 @@ const dataPath = path.join(dataDir, 'store.json');
 
 const PORT = Number(process.env.PORT || 8787);
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+const IS_PRODUCTION = String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-in-production';
 const MAX_JSON_BODY_BYTES = Number(process.env.MAX_JSON_BODY_BYTES || 8_000_000);
 const COACH_EMAIL = 'carlotaloopezcarracedo@gmail.com';
-const COACH_PASSWORD = '123456';
+const COACH_PASSWORD = process.env.COACH_PASSWORD || (IS_PRODUCTION ? '' : '123456');
 const CLIENT_CREDENTIALS = process.env.CLIENT_CREDENTIALS || '';
-const ALLOW_OPEN_CLIENT_LOGIN = (process.env.ALLOW_OPEN_CLIENT_LOGIN || 'true').toLowerCase() === 'true';
+const ALLOW_OPEN_CLIENT_LOGIN = (process.env.ALLOW_OPEN_CLIENT_LOGIN || 'false').toLowerCase() === 'true';
 const progressPhotoViews = new Set(['frente', 'perfil', 'espalda']);
 
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || '')
@@ -265,6 +266,100 @@ function parseClientCredentials(rawValue) {
 }
 
 const envClientCredentials = parseClientCredentials(CLIENT_CREDENTIALS);
+const PASSWORD_HASH_PREFIX = 'scrypt$';
+
+function assertSecurityConfiguration() {
+  if (IS_PRODUCTION && SESSION_SECRET === 'change-me-in-production') {
+    throw new Error('SESSION_SECRET es obligatorio en produccion.');
+  }
+
+  if (IS_PRODUCTION && !String(COACH_PASSWORD || '').trim()) {
+    throw new Error('COACH_PASSWORD es obligatorio en produccion.');
+  }
+
+  if (ALLOW_OPEN_CLIENT_LOGIN) {
+    console.warn('WARNING: ALLOW_OPEN_CLIENT_LOGIN=true habilita alta automatica de clientes.');
+  }
+}
+
+function isScryptHash(rawPassword) {
+  return String(rawPassword || '').startsWith(PASSWORD_HASH_PREFIX);
+}
+
+function hashPassword(rawPassword) {
+  const plainPassword = String(rawPassword || '');
+  if (!plainPassword) return '';
+  if (isScryptHash(plainPassword)) {
+    return plainPassword;
+  }
+
+  const salt = randomBytes(16).toString('hex');
+  const hash = scryptSync(plainPassword, salt, 64).toString('hex');
+  return `${PASSWORD_HASH_PREFIX}${salt}$${hash}`;
+}
+
+function verifyPassword(candidatePassword, storedPassword) {
+  const candidate = String(candidatePassword || '');
+  const stored = String(storedPassword || '');
+  if (!candidate || !stored) {
+    return false;
+  }
+
+  if (!isScryptHash(stored)) {
+    return stored === candidate;
+  }
+
+  const parts = stored.split('$');
+  if (parts.length !== 3) {
+    return false;
+  }
+
+  const [, salt, expectedHash] = parts;
+  if (!salt || !expectedHash) {
+    return false;
+  }
+
+  let derivedHash = '';
+  try {
+    derivedHash = scryptSync(candidate, salt, 64).toString('hex');
+  } catch {
+    return false;
+  }
+
+  const expectedBuffer = Buffer.from(expectedHash, 'hex');
+  const derivedBuffer = Buffer.from(derivedHash, 'hex');
+  if (expectedBuffer.length === 0 || expectedBuffer.length !== derivedBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(expectedBuffer, derivedBuffer);
+}
+
+function ensureUserPasswordHash(user, fallbackPassword = '') {
+  if (!user || typeof user !== 'object') {
+    return '';
+  }
+
+  const currentPassword = String(user.password || '').trim();
+  if (currentPassword) {
+    if (isScryptHash(currentPassword)) {
+      return currentPassword;
+    }
+    const hashed = hashPassword(currentPassword);
+    user.password = hashed;
+    return hashed;
+  }
+
+  const fallback = String(fallbackPassword || '').trim();
+  if (!fallback) {
+    user.password = '';
+    return '';
+  }
+
+  const hashed = hashPassword(fallback);
+  user.password = hashed;
+  return hashed;
+}
 
 function displayNameFromEmail(email) {
   const localPart = (email.split('@')[0] || '').trim();
@@ -682,7 +777,7 @@ function buildDefaultStore() {
     users: [
       {
         email: COACH_EMAIL,
-        password: COACH_PASSWORD,
+        password: hashPassword(COACH_PASSWORD),
         role: 'COACH',
         name: 'Carlota',
         status: 'active',
@@ -1006,7 +1101,7 @@ function ensureClientRecords(email, options = {}) {
   if (!existing) {
     store.users.push({
       email: normalizedEmail,
-      password: String(options.password || ''),
+      password: hashPassword(String(options.password || '')),
       role: 'CLIENT',
       name: options.name || displayNameFromEmail(normalizedEmail),
       status: 'active',
@@ -1014,7 +1109,7 @@ function ensureClientRecords(email, options = {}) {
     });
   } else {
     if (options.password && !existing.password) {
-      existing.password = String(options.password);
+      existing.password = hashPassword(String(options.password));
     }
     if (options.name) {
       existing.name = options.name;
@@ -1065,7 +1160,7 @@ function ensureStoreConsistency() {
   if (!coachUser) {
     store.users.unshift({
       email: COACH_EMAIL,
-      password: COACH_PASSWORD,
+      password: hashPassword(COACH_PASSWORD),
       role: 'COACH',
       name: 'Carlota',
       status: 'active',
@@ -1073,10 +1168,16 @@ function ensureStoreConsistency() {
     });
   } else {
     coachUser.role = 'COACH';
-    coachUser.password = coachUser.password || COACH_PASSWORD;
     coachUser.name = coachUser.name || 'Carlota';
     coachUser.status = coachUser.status || 'active';
   }
+  ensureUserPasswordHash(store.users.find((user) => user.email === COACH_EMAIL), COACH_PASSWORD);
+
+  store.users.forEach((user) => {
+    if (user.email !== COACH_EMAIL) {
+      ensureUserPasswordHash(user);
+    }
+  });
 
   envClientCredentials.forEach((password, email) => {
     ensureClientRecords(email, { password });
@@ -1125,12 +1226,42 @@ function ensureStoreConsistency() {
 }
 
 async function loadStore() {
+  await mkdir(dataDir, { recursive: true });
+
+  let rawStore = '';
   try {
-    const raw = await readFile(dataPath, 'utf-8');
-    store = JSON.parse(raw);
+    rawStore = await readFile(dataPath, 'utf-8');
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      store = buildDefaultStore();
+      ensureStoreConsistency();
+      await persistStore();
+      return;
+    }
+
+    throw error;
+  }
+
+  try {
+    const sanitizedRawStore = rawStore.charCodeAt(0) === 0xfeff ? rawStore.slice(1) : rawStore;
+    store = JSON.parse(sanitizedRawStore);
   } catch {
+    const backupFileName = `store.corrupt.${Date.now()}.json`;
+    const backupPath = path.join(dataDir, backupFileName);
+    await writeFile(backupPath, rawStore, 'utf-8');
+    throw new Error(
+      `No se pudo leer server/data/store.json. Se guardo una copia en ${backupFileName}.`,
+    );
+  }
+
+  if (!store || typeof store !== 'object') {
     store = buildDefaultStore();
   }
+
+  if (!Array.isArray(store.users)) {
+    store.users = [];
+  }
+
   ensureStoreConsistency();
   await persistStore();
 }
@@ -1247,12 +1378,11 @@ function getUserForLogin(email) {
   return store.users.find((item) => item.email === normalizedEmail) || null;
 }
 
-function getExpectedPassword(user) {
+function getStoredPasswordHash(user) {
   if (!user) return '';
-  if (user.role === 'COACH') {
-    return String(user.password || COACH_PASSWORD);
-  }
-  return String(user.password || '');
+  return user.role === 'COACH'
+    ? ensureUserPasswordHash(user, COACH_PASSWORD)
+    : ensureUserPasswordHash(user);
 }
 
 function sanitizeReviewPayload(payload) {
@@ -1470,8 +1600,12 @@ async function handleApi(req, res, requestUrl) {
     const userRecord = getUserForLogin(email);
 
     if (email === COACH_EMAIL) {
-      const expectedCoachPassword = getExpectedPassword(userRecord);
-      if (password !== expectedCoachPassword) {
+      if (!userRecord) {
+        return json(req, res, 401, { message: 'Credenciales incorrectas' });
+      }
+
+      const storedCoachPassword = getStoredPasswordHash(userRecord);
+      if (!verifyPassword(password, storedCoachPassword)) {
         return json(req, res, 401, { message: 'Credenciales incorrectas' });
       }
     }
@@ -1481,11 +1615,12 @@ async function handleApi(req, res, requestUrl) {
       const envPassword = envClientCredentials.get(email);
 
       if (existingUser) {
-        if (existingUser.password && existingUser.password !== password) {
+        const storedClientPassword = getStoredPasswordHash(existingUser);
+        if (storedClientPassword && !verifyPassword(password, storedClientPassword)) {
           return json(req, res, 401, { message: 'Credenciales incorrectas' });
         }
-        if (!existingUser.password) {
-          existingUser.password = password;
+        if (!storedClientPassword) {
+          existingUser.password = hashPassword(password);
         }
       } else if (envPassword) {
         if (envPassword !== password) {
@@ -1964,6 +2099,35 @@ async function handleApi(req, res, requestUrl) {
     return json(req, res, 200, metrics);
   }
 
+  if (pathname === '/api/workouts/logs' && req.method === 'GET') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+
+    const requestedEmail = normalizeEmail(requestUrl.searchParams.get('email'));
+    const targetEmail =
+      session.user.role === 'COACH' && requestedEmail
+        ? requestedEmail
+        : session.user.email;
+
+    if (session.user.role === 'CLIENT' && targetEmail !== session.user.email) {
+      return json(req, res, 403, { message: 'No autorizado' });
+    }
+
+    if (session.user.role === 'COACH' && !getClientUser(targetEmail)) {
+      return json(req, res, 404, { message: 'Cliente no encontrado' });
+    }
+
+    if (targetEmail === COACH_EMAIL) {
+      return json(req, res, 400, { message: 'El coach no tiene logs de entrenamiento de cliente' });
+    }
+
+    ensureClientRecords(targetEmail);
+    const logs = [...getWorkoutLogsForClient(targetEmail)].sort(
+      (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime(),
+    );
+    return json(req, res, 200, { logs });
+  }
+
   if (pathname === '/api/progress/photos' && req.method === 'POST') {
     const session = requireAuth(req, res);
     if (!session) return;
@@ -2247,12 +2411,12 @@ async function handleApi(req, res, requestUrl) {
       return json(req, res, 404, { message: 'Usuario no encontrado' });
     }
 
-    const expectedPassword = getExpectedPassword(user);
-    if (expectedPassword !== currentPassword) {
+    const storedPassword = getStoredPasswordHash(user);
+    if (!verifyPassword(currentPassword, storedPassword)) {
       return json(req, res, 401, { message: 'Contrasena actual incorrecta' });
     }
 
-    user.password = newPassword;
+    user.password = hashPassword(newPassword);
     await persistStore();
     return json(req, res, 200, { success: true });
   }
@@ -2307,7 +2471,13 @@ async function serveStatic(res, pathname) {
   }
 }
 
-const loadPromise = loadStore();
+assertSecurityConfiguration();
+
+const loadPromise = loadStore().catch((error) => {
+  console.error('Fatal error loading backend store:', error);
+  process.exit(1);
+  throw error;
+});
 
 const server = createServer(async (req, res) => {
   const requestUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
