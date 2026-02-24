@@ -1879,9 +1879,16 @@ async function handleApi(req, res, requestUrl) {
     const session = requireAuth(req, res);
     if (!session) return;
 
+    const requestedEmail = normalizeEmail(requestUrl.searchParams.get('email'));
+    if (session.user.role === 'COACH' && requestedEmail && !getClientUser(requestedEmail)) {
+      return json(req, res, 404, { message: 'Cliente no encontrado' });
+    }
+
     const reviews =
       session.user.role === 'COACH'
-        ? [...store.reviews]
+        ? requestedEmail
+          ? store.reviews.filter((review) => normalizeEmail(review.clientEmail) === requestedEmail)
+          : [...store.reviews]
         : store.reviews.filter((review) => review.clientEmail === session.user.email);
 
     reviews.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());

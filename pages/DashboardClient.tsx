@@ -45,6 +45,14 @@ interface ClientDashboardResponse {
   };
 }
 
+interface ReviewItem {
+  id: string;
+  status: 'pending' | 'completed';
+  submittedAt: string;
+  weightKg: number;
+  feedback: string;
+}
+
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
@@ -99,19 +107,47 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
     setCoachProfileError('');
 
     try {
-      const response = await fetch(apiUrl(`/api/profile?email=${encodeURIComponent(coachClientEmail)}`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const [profileResponse, reviewsResponse] = await Promise.all([
+        fetch(apiUrl(`/api/profile?email=${encodeURIComponent(coachClientEmail)}`), {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(apiUrl(`/api/reviews?email=${encodeURIComponent(coachClientEmail)}`), {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
 
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({ message: 'No se pudo cargar el perfil del cliente.' }));
+      if (!profileResponse.ok) {
+        const body = await profileResponse.json().catch(() => ({ message: 'No se pudo cargar el perfil del cliente.' }));
         throw new Error(body.message || 'No se pudo cargar el perfil del cliente.');
       }
 
-      const data = (await response.json()) as { profile: ClientProfileData };
-      setCoachViewProfile(data.profile);
-      if (typeof data.profile.currentWeightKg === 'number') {
-        setLiveWeightKg(data.profile.currentWeightKg);
+      const profileData = (await profileResponse.json()) as { profile: ClientProfileData };
+      const reviewsData = reviewsResponse.ok
+        ? ((await reviewsResponse.json()) as { reviews: ReviewItem[] })
+        : { reviews: [] };
+
+      const reviews = Array.isArray(reviewsData.reviews) ? reviewsData.reviews : [];
+      const latestReview = reviews[0] || null;
+      const latestFeedbackReview = reviews.find((review) => review.status === 'completed' && String(review.feedback || '').trim());
+      const resolvedCurrentWeight =
+        latestReview && Number.isFinite(Number(latestReview.weightKg))
+          ? Number(latestReview.weightKg)
+          : profileData.profile.currentWeightKg;
+
+      setPendingReviews(reviews.filter((review) => review.status === 'pending').length);
+      setLatestFeedback(latestFeedbackReview?.feedback || '');
+
+      const normalizedProfile: ClientProfileData = {
+        ...profileData.profile,
+        currentWeightKg:
+          Number.isFinite(Number(resolvedCurrentWeight)) && Number(resolvedCurrentWeight) > 0
+            ? Number(resolvedCurrentWeight)
+            : profileData.profile.currentWeightKg,
+      };
+
+      setCoachViewProfile(normalizedProfile);
+      if (typeof normalizedProfile.currentWeightKg === 'number') {
+        setLiveWeightKg(normalizedProfile.currentWeightKg);
       }
     } catch (error) {
       setCoachViewProfile(null);
@@ -152,7 +188,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
   }, [isCoachView, loadCoachProfile]);
 
   useEffect(() => {
-    if (!isCoachView || activeTab !== 'progress') return;
+    if (!isCoachView) return;
 
     const refresh = () => {
       void loadCoachProfile();
@@ -173,7 +209,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [activeTab, isCoachView, loadCoachProfile]);
+  }, [isCoachView, loadCoachProfile]);
 
   const coachDisplayName = coachViewProfile
     ? `${coachViewProfile.firstName || ''} ${coachViewProfile.lastName || ''}`.trim()
