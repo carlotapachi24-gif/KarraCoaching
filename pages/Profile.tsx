@@ -136,20 +136,18 @@ export const Profile: React.FC<ProfileProps> = ({
   const personalData = {
     name: clientName,
     age: calculateAge(birthDate),
-    height: heightCm || 182,
-    startWeight: startWeightKg || 90.2,
-    currentWeight: latestBodyWeight || currentWeightKg || 83.5,
+    height: Number.isFinite(heightCm as number) ? Number(heightCm) : null,
+    startWeight: Number.isFinite(startWeightKg as number) ? Number(startWeightKg) : null,
+    currentWeight:
+      typeof latestBodyWeight === 'number'
+        ? latestBodyWeight
+        : Number.isFinite(currentWeightKg as number)
+          ? Number(currentWeightKg)
+          : null,
     email: clientEmail,
     level: 'Intermedio',
-    // New Fields
-    objective: objectiveText || 'Mejorar la composición corporal reduciendo grasa y aumentar el rendimiento en carrera (10k) sin perder fuerza máxima.',
-    injuries:
-      injuries && injuries.length > 0
-        ? injuries
-        : [
-            'Tendinopatía rotuliana leve (Rodilla derecha) - En rehabilitación.',
-            'Molestia hombro izquierdo en press vertical pesado.',
-          ],
+    objective: String(objectiveText || '').trim() || 'Sin objetivo definido.',
+    injuries: Array.isArray(injuries) ? injuries.filter((item) => String(item || '').trim().length > 0) : [],
   };
 
   const formatChartDate = (value: string) => {
@@ -524,9 +522,9 @@ export const Profile: React.FC<ProfileProps> = ({
 
           <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
             <StatBox icon={User} label="Edad" value={`${personalData.age} años`} />
-            <StatBox icon={Ruler} label="Altura" value={`${personalData.height} cm`} />
-            <StatBox icon={Weight} label="Peso Inicio" value={`${personalData.startWeight} kg`} />
-            <StatBox icon={Weight} label="Peso Actual" value={`${personalData.currentWeight} kg`} highlight />
+            <StatBox icon={Ruler} label="Altura" value={personalData.height !== null ? `${personalData.height} cm` : '--'} />
+            <StatBox icon={Weight} label="Peso Inicio" value={personalData.startWeight !== null ? `${personalData.startWeight} kg` : '--'} />
+            <StatBox icon={Weight} label="Peso Actual" value={personalData.currentWeight !== null ? `${personalData.currentWeight} kg` : '--'} highlight />
           </div>
         </div>
       </section>
