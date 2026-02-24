@@ -1,17 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { HashRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
-import { DashboardClient } from './pages/DashboardClient';
-import { DashboardCoach } from './pages/DashboardCoach';
-import { CheckIn } from './pages/CheckIn';
-import { Plan } from './pages/Plan';
-import { Messages } from './pages/Messages';
-import { Settings } from './pages/Settings';
-import { Clients } from './pages/Clients';
-import { Reviews } from './pages/Reviews';
-import { Library } from './pages/Library';
-import { Profile } from './pages/Profile';
-import { Activities } from './pages/Activities';
 import { ClientProfileData, UserRole } from './types';
 import { Login } from './pages/Login';
 import { deriveUserIdentity } from './utils/userIdentity';
@@ -35,6 +24,36 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const IS_GITHUB_PAGES = window.location.hostname.endsWith('github.io');
 
 const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
+
+const DashboardClient = lazy(() =>
+  import('./pages/DashboardClient').then((module) => ({ default: module.DashboardClient })),
+);
+const DashboardCoach = lazy(() =>
+  import('./pages/DashboardCoach').then((module) => ({ default: module.DashboardCoach })),
+);
+const CheckIn = lazy(() => import('./pages/CheckIn').then((module) => ({ default: module.CheckIn })));
+const Plan = lazy(() => import('./pages/Plan').then((module) => ({ default: module.Plan })));
+const Messages = lazy(() =>
+  import('./pages/Messages').then((module) => ({ default: module.Messages })),
+);
+const Settings = lazy(() =>
+  import('./pages/Settings').then((module) => ({ default: module.Settings })),
+);
+const Clients = lazy(() => import('./pages/Clients').then((module) => ({ default: module.Clients })));
+const Reviews = lazy(() => import('./pages/Reviews').then((module) => ({ default: module.Reviews })));
+const Library = lazy(() => import('./pages/Library').then((module) => ({ default: module.Library })));
+const ProfilePage = lazy(() =>
+  import('./pages/Profile').then((module) => ({ default: module.Profile })),
+);
+const Activities = lazy(() =>
+  import('./pages/Activities').then((module) => ({ default: module.Activities })),
+);
+
+const PageLoadingFallback = () => (
+  <div className="min-h-[50vh] flex items-center justify-center">
+    <p className="font-display font-bold text-xl text-slate-500 uppercase tracking-wide">Cargando pagina...</p>
+  </div>
+);
 
 function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -254,105 +273,107 @@ function App() {
 
         <main className="flex-1 p-4 md:p-8 lg:p-10 pt-20 md:pt-10 overflow-x-hidden">
           <div className="max-w-7xl mx-auto">
-            <Routes>
-              <Route
-                path="/"
-                element={
-                  user.role === UserRole.CLIENT ? (
-                    <DashboardClient
-                      currentClientName={userIdentity.firstName}
-                      currentClientFullName={userIdentity.fullName}
-                      currentClientEmail={user.email}
-                      currentClientAvatarUrl={clientProfile?.avatarUrl}
-                      currentClientBio={clientProfile?.bio}
-                      currentClientBirthDate={clientProfile?.birthDate}
-                      currentClientHeightCm={clientProfile?.heightCm}
-                      currentClientStartWeightKg={clientProfile?.startWeightKg}
-                      currentClientCurrentWeightKg={clientProfile?.currentWeightKg}
-                      currentClientInjuries={clientProfile?.injuries}
-                    />
-                  ) : (
-                    <DashboardCoach />
-                  )
-                }
-              />
+            <Suspense fallback={<PageLoadingFallback />}>
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    user.role === UserRole.CLIENT ? (
+                      <DashboardClient
+                        currentClientName={userIdentity.firstName}
+                        currentClientFullName={userIdentity.fullName}
+                        currentClientEmail={user.email}
+                        currentClientAvatarUrl={clientProfile?.avatarUrl}
+                        currentClientBio={clientProfile?.bio}
+                        currentClientBirthDate={clientProfile?.birthDate}
+                        currentClientHeightCm={clientProfile?.heightCm}
+                        currentClientStartWeightKg={clientProfile?.startWeightKg}
+                        currentClientCurrentWeightKg={clientProfile?.currentWeightKg}
+                        currentClientInjuries={clientProfile?.injuries}
+                      />
+                    ) : (
+                      <DashboardCoach />
+                    )
+                  }
+                />
 
-              <Route
-                path="/client/:clientId"
-                element={user.role === UserRole.COACH ? <DashboardClient /> : <Navigate to="/" replace />}
-              />
-              <Route
-                path="/profile"
-                element={
-                  user.role === UserRole.CLIENT ? (
-                    <Profile
-                      clientName={userIdentity.fullName}
-                      clientEmail={user.email}
-                      avatarUrl={clientProfile?.avatarUrl}
-                      objectiveText={clientProfile?.bio}
-                      birthDate={clientProfile?.birthDate}
-                      heightCm={clientProfile?.heightCm}
-                      startWeightKg={clientProfile?.startWeightKg}
-                      currentWeightKg={clientProfile?.currentWeightKg}
-                      injuries={clientProfile?.injuries}
-                    />
-                  ) : (
-                    <Navigate to="/" replace />
-                  )
-                }
-              />
-              <Route
-                path="/checkin"
-                element={user.role === UserRole.CLIENT ? <CheckIn /> : <Navigate to="/" replace />}
-              />
-              <Route
-                path="/plan"
-                element={<Plan currentUserRole={user.role} currentUserEmail={user.email} />}
-              />
-              <Route
-                path="/activities"
-                element={user.role === UserRole.CLIENT ? <Activities /> : <Navigate to="/" replace />}
-              />
-              <Route path="/messages" element={<Messages currentUserEmail={user.email} currentUserRole={user.role} />} />
-              <Route
-                path="/settings"
-                element={
-                  user.role === UserRole.CLIENT ? (
-                    <Settings
-                      userName={userIdentity.fullName}
-                      userEmail={user.email}
-                      initialProfile={clientProfile || buildDefaultProfile(user.email)}
-                      onSaveProfile={(updated) => saveProfile(user.email, updated)}
-                      onLogout={handleLogout}
-                    />
-                  ) : (
-                    <Settings userName="Carlota" userEmail={user.email} onLogout={handleLogout} />
-                  )
-                }
-              />
-              <Route
-                path="/clients"
-                element={user.role === UserRole.COACH ? <Clients /> : <Navigate to="/" replace />}
-              />
-              <Route
-                path="/reviews"
-                element={user.role === UserRole.COACH ? <Reviews /> : <Navigate to="/" replace />}
-              />
-              <Route
-                path="/library"
-                element={user.role === UserRole.COACH ? <Library /> : <Library readOnly />}
-              />
+                <Route
+                  path="/client/:clientId"
+                  element={user.role === UserRole.COACH ? <DashboardClient /> : <Navigate to="/" replace />}
+                />
+                <Route
+                  path="/profile"
+                  element={
+                    user.role === UserRole.CLIENT ? (
+                      <ProfilePage
+                        clientName={userIdentity.fullName}
+                        clientEmail={user.email}
+                        avatarUrl={clientProfile?.avatarUrl}
+                        objectiveText={clientProfile?.bio}
+                        birthDate={clientProfile?.birthDate}
+                        heightCm={clientProfile?.heightCm}
+                        startWeightKg={clientProfile?.startWeightKg}
+                        currentWeightKg={clientProfile?.currentWeightKg}
+                        injuries={clientProfile?.injuries}
+                      />
+                    ) : (
+                      <Navigate to="/" replace />
+                    )
+                  }
+                />
+                <Route
+                  path="/checkin"
+                  element={user.role === UserRole.CLIENT ? <CheckIn /> : <Navigate to="/" replace />}
+                />
+                <Route
+                  path="/plan"
+                  element={<Plan currentUserRole={user.role} currentUserEmail={user.email} />}
+                />
+                <Route
+                  path="/activities"
+                  element={user.role === UserRole.CLIENT ? <Activities /> : <Navigate to="/" replace />}
+                />
+                <Route path="/messages" element={<Messages currentUserEmail={user.email} currentUserRole={user.role} />} />
+                <Route
+                  path="/settings"
+                  element={
+                    user.role === UserRole.CLIENT ? (
+                      <Settings
+                        userName={userIdentity.fullName}
+                        userEmail={user.email}
+                        initialProfile={clientProfile || buildDefaultProfile(user.email)}
+                        onSaveProfile={(updated) => saveProfile(user.email, updated)}
+                        onLogout={handleLogout}
+                      />
+                    ) : (
+                      <Settings userName="Carlota" userEmail={user.email} onLogout={handleLogout} />
+                    )
+                  }
+                />
+                <Route
+                  path="/clients"
+                  element={user.role === UserRole.COACH ? <Clients /> : <Navigate to="/" replace />}
+                />
+                <Route
+                  path="/reviews"
+                  element={user.role === UserRole.COACH ? <Reviews /> : <Navigate to="/" replace />}
+                />
+                <Route
+                  path="/library"
+                  element={user.role === UserRole.COACH ? <Library /> : <Library readOnly />}
+                />
 
-              <Route
-                path="*"
-                element={
-                  <div className="flex flex-col items-center justify-center h-[50vh] text-slate-400">
-                    <span className="font-display text-2xl font-bold mb-2">Proximamente</span>
-                    <p>Esta pagina esta en construccion.</p>
-                  </div>
-                }
-              />
-            </Routes>
+                <Route
+                  path="*"
+                  element={
+                    <div className="flex flex-col items-center justify-center h-[50vh] text-slate-400">
+                      <span className="font-display text-2xl font-bold mb-2">Proximamente</span>
+                      <p>Esta pagina esta en construccion.</p>
+                    </div>
+                  }
+                />
+              </Routes>
+            </Suspense>
           </div>
         </main>
         {user.role === UserRole.CLIENT && <WhatsAppFloatingButton />}

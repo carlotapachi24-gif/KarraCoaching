@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import {
   TrendingDown,
   CheckCircle,
@@ -13,9 +13,7 @@ import {
   AlertCircle,
   Loader2,
 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Profile } from './Profile';
 import { ClientProfileData } from '../types';
 
 interface DashboardClientProps {
@@ -57,15 +55,8 @@ const TOKEN_STORAGE_KEY = 'karra_auth_token';
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
-const displayNameFromEmail = (email: string) => {
-  const local = (email.split('@')[0] || '').trim();
-  if (!local) return 'Cliente';
-  return local
-    .split(/[._-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(' ');
-};
+
+const Profile = lazy(() => import('./Profile').then((module) => ({ default: module.Profile })));
 
 export const DashboardClient: React.FC<DashboardClientProps> = ({
   currentClientName = 'Cliente',
@@ -232,13 +223,11 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
 
   const completedTasks = tasks.filter((t) => t.status === 'completed').length;
   const totalTasks = tasks.length;
-  const compliancePercentage = Math.round((completedTasks / totalTasks) * 100);
-
-  const weightData = [
-    { name: 'Completed', value: compliancePercentage },
-    { name: 'Remaining', value: 100 - compliancePercentage },
-  ];
-  const COLORS = ['#16A34A', '#E2E8F0'];
+  const compliancePercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const clampedCompliancePercentage = Math.max(0, Math.min(100, compliancePercentage));
+  const ringRadius = 62;
+  const ringCircumference = 2 * Math.PI * ringRadius;
+  const ringOffset = ringCircumference - (clampedCompliancePercentage / 100) * ringCircumference;
 
   return (
     <div className="space-y-8 animate-fade-in pb-10">
@@ -305,29 +294,35 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 items-center">
                 <div className="flex flex-col items-center relative">
                   <div className="w-40 h-40 relative">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart margin={{ top: 0, left: 0, right: 0, bottom: 0 }}>
-                        <Pie
-                          data={weightData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={55}
-                          outerRadius={70}
-                          startAngle={90}
-                          endAngle={-270}
-                          dataKey="value"
-                          cornerRadius={10}
-                          stroke="none"
-                          paddingAngle={5}
-                        >
-                          {weightData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <svg
+                      viewBox="0 0 160 160"
+                      className="w-full h-full -rotate-90"
+                      role="img"
+                      aria-label={`Habitos completados: ${clampedCompliancePercentage}%`}
+                    >
+                      <circle
+                        cx="80"
+                        cy="80"
+                        r={ringRadius}
+                        fill="none"
+                        stroke="#E2E8F0"
+                        strokeWidth="18"
+                      />
+                      <circle
+                        cx="80"
+                        cy="80"
+                        r={ringRadius}
+                        fill="none"
+                        stroke="#16A34A"
+                        strokeWidth="18"
+                        strokeLinecap="round"
+                        strokeDasharray={ringCircumference}
+                        strokeDashoffset={ringOffset}
+                        className="transition-[stroke-dashoffset] duration-500 ease-out"
+                      />
+                    </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <span className="font-display text-4xl font-black text-text italic tracking-tighter">{compliancePercentage}%</span>
+                      <span className="font-display text-4xl font-black text-text italic tracking-tighter">{clampedCompliancePercentage}%</span>
                       <span className="text-xs text-slate-400 font-black uppercase tracking-widest">Habitos</span>
                     </div>
                   </div>
@@ -447,22 +442,31 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
           Cargando perfil del cliente...
         </div>
       ) : (
-        <Profile
-          isEmbedded={true}
-          clientName={
-            isCoachView
-              ? `${coachViewProfile?.firstName || ''} ${coachViewProfile?.lastName || ''}`.trim() || clientName
-              : currentClientFullName
+        <Suspense
+          fallback={
+            <div className="bg-white rounded-2xl border border-slate-100 p-8 flex items-center justify-center gap-3 text-slate-500 font-bold uppercase tracking-wide text-sm">
+              <Loader2 size={18} className="animate-spin" />
+              Cargando progreso...
+            </div>
           }
-          clientEmail={isCoachView ? coachClientEmail : currentClientEmail}
-          avatarUrl={isCoachView ? coachViewProfile?.avatarUrl : currentClientAvatarUrl}
-          objectiveText={isCoachView ? coachViewProfile?.bio : currentClientBio}
-          birthDate={isCoachView ? coachViewProfile?.birthDate : currentClientBirthDate}
-          heightCm={isCoachView ? coachViewProfile?.heightCm : currentClientHeightCm}
-          startWeightKg={isCoachView ? coachViewProfile?.startWeightKg : currentClientStartWeightKg}
-          currentWeightKg={isCoachView ? coachViewProfile?.currentWeightKg : liveWeightKg || undefined}
-          injuries={isCoachView ? coachViewProfile?.injuries : currentClientInjuries}
-        />
+        >
+          <Profile
+            isEmbedded={true}
+            clientName={
+              isCoachView
+                ? `${coachViewProfile?.firstName || ''} ${coachViewProfile?.lastName || ''}`.trim() || clientName
+                : currentClientFullName
+            }
+            clientEmail={isCoachView ? coachClientEmail : currentClientEmail}
+            avatarUrl={isCoachView ? coachViewProfile?.avatarUrl : currentClientAvatarUrl}
+            objectiveText={isCoachView ? coachViewProfile?.bio : currentClientBio}
+            birthDate={isCoachView ? coachViewProfile?.birthDate : currentClientBirthDate}
+            heightCm={isCoachView ? coachViewProfile?.heightCm : currentClientHeightCm}
+            startWeightKg={isCoachView ? coachViewProfile?.startWeightKg : currentClientStartWeightKg}
+            currentWeightKg={isCoachView ? coachViewProfile?.currentWeightKg : liveWeightKg || undefined}
+            injuries={isCoachView ? coachViewProfile?.injuries : currentClientInjuries}
+          />
+        </Suspense>
       )}
     </div>
   );

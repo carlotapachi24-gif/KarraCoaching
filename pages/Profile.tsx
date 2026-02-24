@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area } from 'recharts';
 import { User, Ruler, Weight, Activity, Zap, TrendingUp, Trophy, Target, Stethoscope, AlertTriangle, CheckCircle2, Download, Plus, ArrowRightLeft, Grid, List, Loader2, AlertCircle } from 'lucide-react';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
 
 type ProgressView = 'frente' | 'perfil' | 'espalda';
 
@@ -418,6 +416,11 @@ export const Profile: React.FC<ProfileProps> = ({
     
     setIsExporting(true);
     try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+
       const canvas = await html2canvas(reportRef.current, {
         scale: 2,
         useCORS: true,

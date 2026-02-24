@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { Search, Play, Plus, Dumbbell, X, Save, Video } from 'lucide-react';
 
 interface LibraryProps {
@@ -56,7 +56,6 @@ const defaultMediaByTitle: Record<string, string> = {
   'plancha lateral': '/plancha-lateral.gif',
   'crunch': '/crunch.gif',
   'elevaciones de piernas': '/elevaciones-piernas.gif',
-  'crunch': '/crunch.gif',
   'ab wheel': '/ab-wheel.gif',
   'curl concentrado': '/curl-concentrado.gif',
   'curl martillo': '/curl-martillo.gif',
@@ -66,9 +65,7 @@ const defaultMediaByTitle: Record<string, string> = {
   'extension por encima de la cabeza': '/extension-por-encima-de-la-cabeza.gif',
   'press frances': '/press-frances.gif',
   'press inclinado': '/press-inclinado.gif',
-  'press militar': '/press-militar.gif',
   'elevaciones laterales': '/elevaciones-laterales.gif',
-  'pájaros con mancuerna': '/pajaros.gif',
   'pajaros con mancuerna': '/pajaros.gif',
   'push press': '/push-press.gif',
   'zancadas caminando': '/zancadas-caminando.gif',
