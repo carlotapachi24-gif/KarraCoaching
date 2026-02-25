@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Send, Image, Paperclip, MoreVertical, Search, CheckCheck } from 'lucide-react';
 import { UserRole } from '../types';
 import { useSearchParams } from 'react-router-dom';
@@ -22,7 +22,7 @@ interface ClientOption {
 }
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const API_BASE = window.location.hostname.endsWith('github.io') ? (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '') : '';
 const COACH_EMAIL = 'carlotaloopezcarracedo@gmail.com';
 
 const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);

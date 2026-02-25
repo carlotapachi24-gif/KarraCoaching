@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { Users, AlertCircle, TrendingUp, Search, MessageSquare, FileText, CalendarDays } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -23,7 +23,7 @@ interface CoachDashboardResponse {
 }
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const API_BASE = window.location.hostname.endsWith('github.io') ? (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '') : '';
 const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
 export const DashboardCoach: React.FC = () => {

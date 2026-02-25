@@ -27,8 +27,8 @@ const PROFILE_CACHE_PREFIX = 'karra_profile_cache:';
 const REQUEST_TIMEOUT_MS = 12000;
 const LOGIN_TIMEOUT_MS = 60000;
 const LOGIN_WARMUP_MAX_WAIT_MS = 90000;
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const IS_GITHUB_PAGES = window.location.hostname.endsWith('github.io');
+const API_BASE = IS_GITHUB_PAGES ? (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '') : '';
 
 const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 const normalizeEmail = (email: string) => String(email || '').trim().toLowerCase();

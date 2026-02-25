@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { Search, Filter, MoreVertical, Plus, Mail, User, FileText, X, KeyRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -13,7 +13,7 @@ interface CoachClient {
 }
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const API_BASE = window.location.hostname.endsWith('github.io') ? (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '') : '';
 const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
 export const Clients: React.FC = () => {

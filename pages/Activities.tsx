@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { ClipboardCheck, Dumbbell, Loader2, RefreshCw, AlertCircle, TrendingUp, Clock3 } from 'lucide-react';
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const API_BASE = window.location.hostname.endsWith('github.io') ? (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '') : '';
 const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
 interface DashboardClientResponse {
