@@ -25,7 +25,8 @@ const TOKEN_STORAGE_KEY = 'karra_auth_token';
 const AUTH_USER_STORAGE_KEY = 'karra_auth_user';
 const PROFILE_CACHE_PREFIX = 'karra_profile_cache:';
 const REQUEST_TIMEOUT_MS = 12000;
-const LOGIN_TIMEOUT_MS = 20000;
+const LOGIN_TIMEOUT_MS = 60000;
+const LOGIN_WARMUP_MAX_WAIT_MS = 90000;
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const IS_GITHUB_PAGES = window.location.hostname.endsWith('github.io');
 
@@ -47,7 +48,7 @@ const fetchWithTimeout = async (url: string, init: RequestInit = {}, timeoutMs =
 
 const mapNetworkErrorMessage = (error: unknown, fallbackMessage: string) => {
   if (error instanceof DOMException && error.name === 'AbortError') {
-    return 'La solicitud tardo demasiado. Verifica que el backend este activo e intentalo de nuevo.';
+    return 'El backend esta tardando en despertar. Espera unos segundos y vuelve a intentarlo.';
   }
   if (error instanceof TypeError) {
     return 'No se pudo conectar con el backend.';
@@ -56,6 +57,36 @@ const mapNetworkErrorMessage = (error: unknown, fallbackMessage: string) => {
     return error.message;
   }
   return fallbackMessage;
+};
+
+const isAbortError = (error: unknown) =>
+  error instanceof DOMException && error.name === 'AbortError';
+
+const wait = (ms: number) =>
+  new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+
+const waitForBackendReady = async (maxWaitMs = LOGIN_WARMUP_MAX_WAIT_MS) => {
+  const startedAt = Date.now();
+  let attempt = 0;
+
+  while (Date.now() - startedAt < maxWaitMs) {
+    attempt += 1;
+    try {
+      const response = await fetchWithTimeout(apiUrl('/api/health'), {}, 10000);
+      if (response.ok) {
+        return true;
+      }
+    } catch {
+      // ignore and retry
+    }
+
+    const backoffMs = Math.min(1500 + attempt * 500, 5000);
+    await wait(backoffMs);
+  }
+
+  return false;
 };
 
 const safeJsonParse = <T,>(value: string | null): T | null => {
@@ -337,7 +368,7 @@ function App() {
       throw new Error('Falta configurar VITE_API_BASE_URL en GitHub Actions (Variables).');
     }
 
-    try {
+    const requestLogin = async () => {
       const response = await fetchWithTimeout(apiUrl('/api/login'), {
         method: 'POST',
         headers: {
@@ -364,7 +395,26 @@ function App() {
         throw new Error(message);
       }
 
-      const loginData = (await response.json()) as LoginResponse;
+      return (await response.json()) as LoginResponse;
+    };
+
+    try {
+      let loginData: LoginResponse;
+      try {
+        loginData = await requestLogin();
+      } catch (error) {
+        if (!isAbortError(error)) {
+          throw error;
+        }
+
+        const isReady = await waitForBackendReady();
+        if (!isReady) {
+          throw error;
+        }
+
+        loginData = await requestLogin();
+      }
+
       window.localStorage.setItem(TOKEN_STORAGE_KEY, loginData.token);
       setUser(loginData.user);
       writeCachedUser(loginData.user);
