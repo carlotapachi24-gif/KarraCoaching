@@ -1595,6 +1595,14 @@ async function handleApi(req, res, requestUrl) {
     return;
   }
 
+  if (pathname === '/api/health' && req.method === 'GET') {
+    return json(req, res, 200, {
+      ok: true,
+      now: nowIso(),
+      uptimeSec: Math.round(process.uptime()),
+    });
+  }
+
   if (pathname === '/api/login' && req.method === 'POST') {
     let body;
     try {

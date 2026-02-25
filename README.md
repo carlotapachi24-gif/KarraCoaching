@@ -67,8 +67,9 @@ GitHub Pages es estatico y no puede ejecutar `server/authServer.mjs`. Por eso:
 
 1. Crea un nuevo servicio Web en Render conectado a este repo.
 2. Configura:
-   - Build Command: `npm install`
-   - Start Command: `node server/authServer.mjs`
+   - Build Command: `npm ci && npm run build`
+   - Start Command: `npm run start`
+   - Health Check Path: `/api/health`
 3. Variables de entorno del backend:
    - `PORT=8787` (opcional, Render suele inyectarlo)
    - `COACH_PASSWORD=<password_seguro_coach>`

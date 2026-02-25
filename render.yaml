@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: karra-coaching
+    env: node
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        sync: false
+      - key: COACH_PASSWORD
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: ALLOW_OPEN_CLIENT_LOGIN
+        value: "false"
+      - key: CLIENT_CREDENTIALS
+        sync: false
