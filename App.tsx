@@ -24,7 +24,8 @@ interface LoginResponse extends SessionResponse {
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
 const AUTH_USER_STORAGE_KEY = 'karra_auth_user';
 const PROFILE_CACHE_PREFIX = 'karra_profile_cache:';
-const REQUEST_TIMEOUT_MS = 4500;
+const REQUEST_TIMEOUT_MS = 12000;
+const LOGIN_TIMEOUT_MS = 20000;
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const IS_GITHUB_PAGES = window.location.hostname.endsWith('github.io');
 
@@ -42,6 +43,19 @@ const fetchWithTimeout = async (url: string, init: RequestInit = {}, timeoutMs =
   } finally {
     window.clearTimeout(timeoutId);
   }
+};
+
+const mapNetworkErrorMessage = (error: unknown, fallbackMessage: string) => {
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return 'La solicitud tardo demasiado. Verifica que el backend este activo e intentalo de nuevo.';
+  }
+  if (error instanceof TypeError) {
+    return 'No se pudo conectar con el backend.';
+  }
+  if (error instanceof Error && String(error.message || '').trim()) {
+    return error.message;
+  }
+  return fallbackMessage;
 };
 
 const safeJsonParse = <T,>(value: string | null): T | null => {
@@ -330,7 +344,7 @@ function App() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password }),
-      });
+      }, LOGIN_TIMEOUT_MS);
 
       if (!response.ok) {
         const rawText = await response.text();
@@ -366,10 +380,7 @@ function App() {
         writeCachedProfile(normalizedEmail, resolvedProfile);
       }
     } catch (error) {
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error('No se pudo conectar con el backend');
+      throw new Error(mapNetworkErrorMessage(error, 'No se pudo conectar con el backend'));
     }
   };
 

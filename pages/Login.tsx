@@ -73,6 +73,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             type="submit"
             disabled={isSubmitting}
             className="w-full py-3 px-4 bg-primary hover:bg-red-700 disabled:opacity-70 disabled:cursor-not-allowed text-white rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
+            style={{ backgroundColor: '#DC2626' }}
           >
             {isSubmitting ? 'Entrando...' : 'Iniciar sesion'}
           </button>
