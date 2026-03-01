@@ -908,7 +908,80 @@ function sanitizeProgressPhotosCollection(collection) {
 function ensureProgressPhotosStore() {
   if (!store.progressPhotos || typeof store.progressPhotos !== 'object') {
     store.progressPhotos = {};
+    return;
   }
+
+  const mergeCollection = (target, email, collection) => {
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail || normalizedEmail === COACH_EMAIL) {
+      return;
+    }
+
+    const current = Array.isArray(target[normalizedEmail]) ? target[normalizedEmail] : [];
+    const incoming = sanitizeProgressPhotosCollection(collection);
+    target[normalizedEmail] = sanitizeProgressPhotosCollection([...current, ...incoming]);
+  };
+
+  const normalizedStore = {};
+
+  // Legacy shape migration: [{ "user@email.com": [ ... ] }, ...]
+  if (Array.isArray(store.progressPhotos)) {
+    store.progressPhotos.forEach((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        return;
+      }
+      Object.entries(entry).forEach(([email, collection]) => {
+        mergeCollection(normalizedStore, email, collection);
+      });
+    });
+    store.progressPhotos = normalizedStore;
+    return;
+  }
+
+  Object.entries(store.progressPhotos).forEach(([email, collection]) => {
+    mergeCollection(normalizedStore, email, collection);
+  });
+  store.progressPhotos = normalizedStore;
+}
+
+function collectKnownClientEmailsFromStore() {
+  const emails = new Set();
+  const addEmail = (value) => {
+    const normalizedEmail = normalizeEmail(value);
+    if (!normalizedEmail || normalizedEmail === COACH_EMAIL || !normalizedEmail.includes('@')) {
+      return;
+    }
+    emails.add(normalizedEmail);
+  };
+
+  if (store.profiles && typeof store.profiles === 'object') {
+    Object.keys(store.profiles).forEach(addEmail);
+  }
+
+  if (store.plans && typeof store.plans === 'object') {
+    Object.keys(store.plans).forEach(addEmail);
+  }
+
+  if (store.progressPhotos && typeof store.progressPhotos === 'object') {
+    Object.keys(store.progressPhotos).forEach(addEmail);
+  }
+
+  if (Array.isArray(store.reviews)) {
+    store.reviews.forEach((review) => addEmail(review?.clientEmail));
+  }
+
+  if (Array.isArray(store.workoutLogs)) {
+    store.workoutLogs.forEach((log) => addEmail(log?.clientEmail));
+  }
+
+  if (Array.isArray(store.messages)) {
+    store.messages.forEach((message) => {
+      addEmail(message?.fromEmail);
+      addEmail(message?.toEmail);
+    });
+  }
+
+  return Array.from(emails);
 }
 
 function getProgressPhotosForClient(email) {
@@ -1213,13 +1286,17 @@ function ensureStoreConsistency() {
   ensureProgressPhotosStore();
   ensureWorkoutLogsStore();
 
-  if (!store.profiles || typeof store.profiles !== 'object') {
+  if (!store.profiles || typeof store.profiles !== 'object' || Array.isArray(store.profiles)) {
     store.profiles = {};
   }
 
-  if (!store.plans || typeof store.plans !== 'object') {
+  if (!store.plans || typeof store.plans !== 'object' || Array.isArray(store.plans)) {
     store.plans = {};
   }
+
+  collectKnownClientEmailsFromStore().forEach((email) => {
+    ensureClientRecords(email);
+  });
 
   store.users
     .filter((user) => user.role === 'CLIENT')
@@ -1461,6 +1538,15 @@ function summarizeCoachDashboard() {
     const clientReviews = reviewsSorted.filter((review) => review.clientEmail === client.email);
     const latestReview = clientReviews[0] || null;
     const pending = clientReviews.find((review) => review.status === 'pending') || null;
+    const profileWeightValue = Number(store.profiles?.[client.email]?.currentWeightKg || 0);
+    const profileWeightKg =
+      Number.isFinite(profileWeightValue) && profileWeightValue > 0 ? Math.round(profileWeightValue * 10) / 10 : null;
+    const latestReviewWeightValue = Number(latestReview?.weightKg || 0);
+    const latestReviewWeightKg =
+      Number.isFinite(latestReviewWeightValue) && latestReviewWeightValue > 0
+        ? Math.round(latestReviewWeightValue * 10) / 10
+        : null;
+
     return {
       email: client.email,
       name: client.name || displayNameFromEmail(client.email),
@@ -1468,7 +1554,7 @@ function summarizeCoachDashboard() {
       lastCheckInAt: latestReview?.submittedAt || null,
       lastReviewStatus: latestReview?.status || null,
       pendingReviewId: pending?.id || null,
-      latestWeightKg: latestReview?.weightKg || null,
+      latestWeightKg: latestReviewWeightKg ?? profileWeightKg,
     };
   });
 

@@ -1,6 +1,7 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Users, AlertCircle, TrendingUp, Search, MessageSquare, FileText, CalendarDays } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { apiUrl } from '../utils/api';
 
 interface ClientData {
   email: string;
@@ -23,8 +24,6 @@ interface CoachDashboardResponse {
 }
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
-const API_BASE = window.location.hostname.endsWith('github.io') ? (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '') : '';
-const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
 export const DashboardCoach: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -61,6 +60,30 @@ export const DashboardCoach: React.FC = () => {
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => {
+      void loadData();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refresh();
+      }
+    };
+
+    const intervalId = window.setInterval(refresh, 30000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('karra:data:updated', refresh);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('karra:data:updated', refresh);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   const filteredClients = clients.filter((client) => {
@@ -189,3 +212,4 @@ const MetricCard = ({ icon: Icon, label, value, subValue, color }: { icon: any; 
     </div>
   );
 };
+

@@ -1,5 +1,6 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Search, Play, Plus, Dumbbell, X, Save, Video } from 'lucide-react';
+import { apiUrl } from '../utils/api';
 
 interface LibraryProps {
   isEmbedded?: boolean;
@@ -17,9 +18,7 @@ interface LibraryResource {
 }
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
-const API_BASE = window.location.hostname.endsWith('github.io') ? (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '') : '';
 const BASE_URL = import.meta.env.BASE_URL || '/';
-const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
 const normalizeResourceTitle = (title: string) => String(title || '').trim().toLowerCase();
 

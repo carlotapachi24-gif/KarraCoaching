@@ -1,4 +1,5 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { apiUrl } from '../utils/api';
 import {
   Clock,
   Dumbbell,
@@ -86,8 +87,6 @@ interface MonthCell {
 }
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
-const API_BASE = window.location.hostname.endsWith('github.io') ? (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '') : '';
-const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
 const WEEKDAY_LABELS = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
 const MONTH_LABELS = [
@@ -719,6 +718,7 @@ export const Plan: React.FC<PlanProps> = ({ currentUserRole }) => {
       }
 
       await loadPlan();
+      window.dispatchEvent(new Event('karra:data:updated'));
     } catch (err) {
       alert(err instanceof Error ? err.message : 'No se pudo guardar el plan');
     } finally {
@@ -1523,3 +1523,4 @@ const WorkoutModal = ({
   </div>
   );
 };
+

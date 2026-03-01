@@ -1,5 +1,6 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ArrowRight, Clock, AlertTriangle, X, MessageSquare, Send, Image } from 'lucide-react';
+import { apiUrl } from '../utils/api';
 
 interface ReviewItemData {
   id: string;
@@ -17,8 +18,6 @@ interface ReviewItemData {
 }
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
-const API_BASE = window.location.hostname.endsWith('github.io') ? (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '') : '';
-const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
 export const Reviews: React.FC = () => {
   const [selectedReview, setSelectedReview] = useState<ReviewItemData | null>(null);
@@ -181,7 +180,7 @@ export const Reviews: React.FC = () => {
                   <h4 className="font-bold text-text text-base uppercase">{review.clientName}</h4>
                   <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
                     <span>{review.clientEmail}</span>
-                    <span>•</span>
+                    <span>�</span>
                     <span className="flex items-center gap-1"><Clock size={12} /> {formatRelative(review.submittedAt)}</span>
                   </div>
                 </div>
@@ -225,4 +224,5 @@ const MetricRow = ({ label, value }: { label: string; value: string }) => (
     <span className="font-display font-black text-lg text-text">{value}</span>
   </div>
 );
+
 

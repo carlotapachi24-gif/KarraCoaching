@@ -1,6 +1,7 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area } from 'recharts';
 import { User, Ruler, Weight, Activity, Zap, TrendingUp, Trophy, Target, Stethoscope, AlertTriangle, CheckCircle2, Download, Plus, ArrowRightLeft, Grid, List, Loader2, AlertCircle } from 'lucide-react';
+import { apiUrl } from '../utils/api';
 
 type ProgressView = 'frente' | 'perfil' | 'espalda';
 
@@ -32,8 +33,6 @@ interface ProgressMetricsResponse {
 }
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
-const API_BASE = window.location.hostname.endsWith('github.io') ? (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '') : '';
-const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
 const readFileAsDataUrl = (file: File) =>
   new Promise<string>((resolve, reject) => {
@@ -358,9 +357,28 @@ export const Profile: React.FC<ProfileProps> = ({
       }
     };
 
-    loadProgressPhotos();
+    const refresh = () => {
+      void loadProgressPhotos();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refresh();
+      }
+    };
+
+    refresh();
+    const intervalId = window.setInterval(refresh, 30000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('karra:data:updated', refresh);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     return () => {
       cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('karra:data:updated', refresh);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [clientEmail]);
 
@@ -493,6 +511,7 @@ export const Profile: React.FC<ProfileProps> = ({
 
       const data = (await response.json()) as { photos: ProgressPhoto[] };
       setProgressPhotos(Array.isArray(data.photos) ? data.photos : []);
+      window.dispatchEvent(new Event('karra:data:updated'));
     } catch (error) {
       setPhotoError(error instanceof Error ? error.message : 'No se pudo subir la foto');
     } finally {
@@ -506,7 +525,7 @@ export const Profile: React.FC<ProfileProps> = ({
       {!isEmbedded && (
         <header className="print:hidden">
           <h1 className="font-display text-4xl md:text-5xl font-black text-text uppercase italic tracking-tighter">Mi Perfil</h1>
-          <p className="text-slate-500 mt-2 font-bold uppercase tracking-wide text-sm">Tus datos y evoluciÃ³n atlÃ©tica.</p>
+          <p className="text-slate-500 mt-2 font-bold uppercase tracking-wide text-sm">Tus datos y evolución atlética.</p>
         </header>
       )}
 
@@ -524,7 +543,7 @@ export const Profile: React.FC<ProfileProps> = ({
           </div>
 
           <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
-            <StatBox icon={User} label="Edad" value={`${personalData.age} aÃ±os`} />
+            <StatBox icon={User} label="Edad" value={`${personalData.age} años`} />
             <StatBox icon={Ruler} label="Altura" value={personalData.height !== null ? `${personalData.height} cm` : '--'} />
             <StatBox icon={Weight} label="Peso Inicio" value={personalData.startWeight !== null ? `${personalData.startWeight} kg` : '--'} />
             <StatBox icon={Weight} label="Peso Actual" value={personalData.currentWeight !== null ? `${personalData.currentWeight} kg` : '--'} highlight />
@@ -555,7 +574,7 @@ export const Profile: React.FC<ProfileProps> = ({
               <Stethoscope size={24} />
             </div>
             <h3 className={`font-display font-black italic uppercase text-xl tracking-tighter ${personalData.injuries.length > 0 ? 'text-red-700' : 'text-green-700'}`}>
-              {personalData.injuries.length > 0 ? 'PatologÃ­as / Lesiones' : 'Estado FÃ­sico'}
+              {personalData.injuries.length > 0 ? 'Patologías / Lesiones' : 'Estado Físico'}
             </h3>
           </div>
           
@@ -571,7 +590,7 @@ export const Profile: React.FC<ProfileProps> = ({
           ) : (
              <div className="flex items-center gap-2 text-green-700 font-bold">
                <CheckCircle2 size={20} />
-               <span>Sin lesiones activas. Â¡A tope!</span>
+               <span>Sin lesiones activas. ¡A tope!</span>
              </div>
           )}
         </div>
@@ -584,7 +603,7 @@ export const Profile: React.FC<ProfileProps> = ({
         <section className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
            <div className="flex items-center gap-3 mb-6">
              <div className="p-2 bg-secondary/10 text-secondary rounded-lg"><TrendingUp size={24} /></div>
-             <h3 className="font-display font-black italic uppercase text-xl tracking-tighter">EvoluciÃ³n Peso Corporal</h3>
+             <h3 className="font-display font-black italic uppercase text-xl tracking-tighter">Evolución Peso Corporal</h3>
            </div>
            {isLoadingMetrics && (
              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 -mt-3 mb-3">Actualizando metricas...</p>
@@ -670,8 +689,8 @@ export const Profile: React.FC<ProfileProps> = ({
            <div className="flex items-center gap-3 mb-6">
              <div className="p-2 bg-orange-50 text-orange-500 rounded-lg"><Zap size={24} /></div>
              <div>
-               <h3 className="font-display font-black italic uppercase text-xl tracking-tighter">Velocidad AerÃ³bica MÃ¡xima (VAM)</h3>
-               <p className="text-xs text-slate-400 font-bold uppercase">EvoluciÃ³n basada en tus tiempos de carrera</p>
+               <h3 className="font-display font-black italic uppercase text-xl tracking-tighter">Velocidad Aeróbica Máxima (VAM)</h3>
+               <p className="text-xs text-slate-400 font-bold uppercase">Evolución basada en tus tiempos de carrera</p>
              </div>
            </div>
            
@@ -903,4 +922,5 @@ const StatBox = ({ icon: Icon, label, value, highlight = false }: any) => (
     <span className="font-display font-black italic text-xl uppercase tracking-tighter">{value}</span>
   </div>
 );
+
 

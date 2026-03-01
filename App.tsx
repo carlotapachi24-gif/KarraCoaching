@@ -3,6 +3,7 @@ import { HashRouter as Router, Navigate, Route, Routes } from 'react-router-dom'
 import { Sidebar } from './components/Sidebar';
 import { ClientProfileData, UserRole } from './types';
 import { Login } from './pages/Login';
+import { API_BASE, IS_GITHUB_PAGES_HOST, apiUrl } from './utils/api';
 import { deriveUserIdentity } from './utils/userIdentity';
 import { WhatsAppFloatingButton } from './components/WhatsAppFloatingButton';
 
@@ -27,10 +28,6 @@ const PROFILE_CACHE_PREFIX = 'karra_profile_cache:';
 const REQUEST_TIMEOUT_MS = 8000;
 const LOGIN_TIMEOUT_MS = 20000;
 const LOGIN_WARMUP_MAX_WAIT_MS = 45000;
-const IS_GITHUB_PAGES = window.location.hostname.endsWith('github.io');
-const API_BASE = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
-
-const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 const normalizeEmail = (email: string) => String(email || '').trim().toLowerCase();
 
 const fetchWithTimeout = async (url: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS) => {
@@ -354,7 +351,7 @@ function App() {
 
   useEffect(() => {
     if (user) return;
-    if (IS_GITHUB_PAGES && !API_BASE) return;
+    if (IS_GITHUB_PAGES_HOST && !API_BASE) return;
     // Calienta backend en segundo plano para evitar esperas largas al enviar credenciales.
     void waitForBackendReady(15000);
   }, [user]);
@@ -374,7 +371,7 @@ function App() {
   }, [clientProfile, loadProfile, user]);
 
   const handleLogin = async (email: string, password: string) => {
-    if (IS_GITHUB_PAGES && !API_BASE) {
+    if (IS_GITHUB_PAGES_HOST && !API_BASE) {
       throw new Error('Falta configurar VITE_API_BASE_URL en GitHub Actions (Variables).');
     }
 

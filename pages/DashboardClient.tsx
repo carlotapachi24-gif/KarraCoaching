@@ -1,4 +1,5 @@
-﻿import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react';
+import { apiUrl } from '../utils/api';
 import {
   TrendingDown,
   CheckCircle,
@@ -52,8 +53,6 @@ interface ReviewItem {
 }
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
-const API_BASE = window.location.hostname.endsWith('github.io') ? (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '') : '';
-const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
 
 const Profile = lazy(() => import('./Profile').then((module) => ({ default: module.Profile })));
@@ -175,7 +174,28 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
       }
     };
 
-    void loadClientDashboard();
+    const refresh = () => {
+      void loadClientDashboard();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refresh();
+      }
+    };
+
+    refresh();
+    const intervalId = window.setInterval(refresh, 30000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('karra:data:updated', refresh);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('karra:data:updated', refresh);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [isCoachView, loadCoachProfile]);
 
   useEffect(() => {
@@ -193,11 +213,13 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
 
     const intervalId = window.setInterval(refresh, 30000);
     window.addEventListener('focus', refresh);
+    window.addEventListener('karra:data:updated', refresh);
     document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
       window.clearInterval(intervalId);
       window.removeEventListener('focus', refresh);
+      window.removeEventListener('karra:data:updated', refresh);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [isCoachView, loadCoachProfile]);
@@ -518,3 +540,4 @@ const TaskItem: React.FC<TaskItemProps> = ({ title, subtitle, status, isPriority
     </div>
   );
 };
+

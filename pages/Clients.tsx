@@ -1,6 +1,7 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Search, Filter, MoreVertical, Plus, Mail, User, FileText, X, KeyRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { apiUrl } from '../utils/api';
 
 interface CoachClient {
   email: string;
@@ -13,8 +14,6 @@ interface CoachClient {
 }
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
-const API_BASE = window.location.hostname.endsWith('github.io') ? (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '') : '';
-const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
 export const Clients: React.FC = () => {
   const [clients, setClients] = useState<CoachClient[]>([]);
@@ -58,6 +57,30 @@ export const Clients: React.FC = () => {
 
   useEffect(() => {
     loadClients();
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => {
+      void loadClients();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refresh();
+      }
+    };
+
+    const intervalId = window.setInterval(refresh, 30000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('karra:data:updated', refresh);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('karra:data:updated', refresh);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   const computedStatus = (client: CoachClient) => {
@@ -383,3 +406,4 @@ export const Clients: React.FC = () => {
     </div>
   );
 };
+

@@ -1,9 +1,8 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ClipboardCheck, Dumbbell, Loader2, RefreshCw, AlertCircle, TrendingUp, Clock3 } from 'lucide-react';
+import { apiUrl } from '../utils/api';
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
-const API_BASE = window.location.hostname.endsWith('github.io') ? (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '') : '';
-const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 
 interface DashboardClientResponse {
   summary: {
@@ -157,6 +156,30 @@ export const Activities: React.FC = () => {
     void loadActivities();
   }, []);
 
+  useEffect(() => {
+    const refresh = () => {
+      void loadActivities();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refresh();
+      }
+    };
+
+    const intervalId = window.setInterval(refresh, 30000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('karra:data:updated', refresh);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('karra:data:updated', refresh);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
   const latestEntryDate = useMemo(() => {
     if (entries.length === 0) return null;
     return entries[0].occurredAt;
@@ -265,3 +288,4 @@ const SummaryCard = ({ label, value, icon: Icon }: { label: string; value: strin
     <p className="font-display font-black italic text-2xl tracking-tight text-text">{value}</p>
   </div>
 );
+
