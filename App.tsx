@@ -59,6 +59,8 @@ const mapNetworkErrorMessage = (error: unknown, fallbackMessage: string) => {
 const isAbortError = (error: unknown) =>
   error instanceof DOMException && error.name === 'AbortError';
 
+const isNetworkTypeError = (error: unknown) => error instanceof TypeError;
+
 const isRetryableLoginError = (error: unknown) =>
   error instanceof Error && Boolean((error as Error & { retryable?: boolean }).retryable);
 
@@ -421,16 +423,26 @@ function App() {
       try {
         loginData = await requestLogin();
       } catch (error) {
-        if (!isAbortError(error) && !isRetryableLoginError(error)) {
+        if (!isAbortError(error) && !isRetryableLoginError(error) && !isNetworkTypeError(error)) {
           throw error;
         }
 
-        const isReady = await waitForBackendReady();
-        if (!isReady) {
-          throw error;
+        // Render free puede devolver errores de red transitorios mientras despierta la instancia.
+        await waitForBackendReady();
+        try {
+          loginData = await requestLogin();
+        } catch (retryError) {
+          if (isNetworkTypeError(retryError)) {
+            await wait(1500);
+            loginData = await requestLogin();
+          } else {
+            throw retryError;
+          }
         }
 
-        loginData = await requestLogin();
+        if (!loginData) {
+          throw error;
+        }
       }
 
       window.localStorage.setItem(TOKEN_STORAGE_KEY, loginData.token);
