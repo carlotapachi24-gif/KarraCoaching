@@ -24,11 +24,11 @@ interface LoginResponse extends SessionResponse {
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
 const AUTH_USER_STORAGE_KEY = 'karra_auth_user';
 const PROFILE_CACHE_PREFIX = 'karra_profile_cache:';
-const REQUEST_TIMEOUT_MS = 12000;
-const LOGIN_TIMEOUT_MS = 60000;
-const LOGIN_WARMUP_MAX_WAIT_MS = 90000;
+const REQUEST_TIMEOUT_MS = 8000;
+const LOGIN_TIMEOUT_MS = 20000;
+const LOGIN_WARMUP_MAX_WAIT_MS = 45000;
 const IS_GITHUB_PAGES = window.location.hostname.endsWith('github.io');
-const API_BASE = IS_GITHUB_PAGES ? (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '') : '';
+const API_BASE = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
 
 const apiUrl = (path: string) => (API_BASE ? `${API_BASE}${path}` : path);
 const normalizeEmail = (email: string) => String(email || '').trim().toLowerCase();
@@ -61,6 +61,9 @@ const mapNetworkErrorMessage = (error: unknown, fallbackMessage: string) => {
 
 const isAbortError = (error: unknown) =>
   error instanceof DOMException && error.name === 'AbortError';
+
+const isRetryableLoginError = (error: unknown) =>
+  error instanceof Error && Boolean((error as Error & { retryable?: boolean }).retryable);
 
 const wait = (ms: number) =>
   new Promise<void>((resolve) => {
@@ -350,6 +353,13 @@ function App() {
   }, [fetchSession]);
 
   useEffect(() => {
+    if (user) return;
+    if (IS_GITHUB_PAGES && !API_BASE) return;
+    // Calienta backend en segundo plano para evitar esperas largas al enviar credenciales.
+    void waitForBackendReady(15000);
+  }, [user]);
+
+  useEffect(() => {
     if (!user || user.role !== UserRole.CLIENT) {
       setClientProfile(null);
       return;
@@ -392,7 +402,18 @@ function App() {
           }
         }
 
-        throw new Error(message);
+        const loginError = new Error(message) as Error & { retryable?: boolean };
+        if (
+          response.status === 408 ||
+          response.status === 429 ||
+          response.status === 502 ||
+          response.status === 503 ||
+          response.status === 504 ||
+          response.status >= 500
+        ) {
+          loginError.retryable = true;
+        }
+        throw loginError;
       }
 
       return (await response.json()) as LoginResponse;
@@ -403,7 +424,7 @@ function App() {
       try {
         loginData = await requestLogin();
       } catch (error) {
-        if (!isAbortError(error)) {
+        if (!isAbortError(error) && !isRetryableLoginError(error)) {
           throw error;
         }
 

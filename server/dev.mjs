@@ -4,27 +4,37 @@ const isWindows = process.platform === 'win32';
 const npmCmd = isWindows ? 'npm.cmd' : 'npm';
 
 function runScript(scriptName) {
-  const child = spawn(npmCmd, ['run', scriptName], {
+  return spawn(npmCmd, ['run', scriptName], {
     stdio: 'inherit',
-    shell: false,
+    // npm.cmd en Windows necesita ejecutarse via shell para evitar spawn EINVAL.
+    shell: isWindows,
   });
-
-  child.on('exit', (code) => {
-    if (code && code !== 0) {
-      process.exit(code);
-    }
-  });
-
-  return child;
 }
 
 const serverProcess = runScript('dev:server');
 const clientProcess = runScript('dev:client');
+const childProcesses = [serverProcess, clientProcess];
+let isShuttingDown = false;
 
-function shutdown() {
-  serverProcess.kill('SIGTERM');
-  clientProcess.kill('SIGTERM');
+function shutdown(signal = 'SIGTERM') {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  childProcesses.forEach((child) => {
+    if (child && child.exitCode === null && !child.killed) {
+      child.kill(signal);
+    }
+  });
 }
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+childProcesses.forEach((child) => {
+  child.on('exit', (code) => {
+    if (isShuttingDown) return;
+    if (code && code !== 0) {
+      shutdown();
+      process.exit(code);
+    }
+  });
+});
+
+process.on('SIGINT', () => shutdown());
+process.on('SIGTERM', () => shutdown());
