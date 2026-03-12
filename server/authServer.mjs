@@ -24,9 +24,13 @@ const CLIENT_CREDENTIALS = process.env.CLIENT_CREDENTIALS || '';
 const ALLOW_OPEN_CLIENT_LOGIN = (process.env.ALLOW_OPEN_CLIENT_LOGIN || 'false').toLowerCase() === 'true';
 const progressPhotoViews = new Set(['frente', 'perfil', 'espalda']);
 
+function normalizeOrigin(value) {
+  return String(value || '').trim().replace(/\/+$/, '').toLowerCase();
+}
+
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || '')
   .split(',')
-  .map((value) => value.trim())
+  .map((value) => normalizeOrigin(value))
   .filter(Boolean);
 
 const sessions = new Map();
@@ -1370,11 +1374,12 @@ async function persistStore() {
 }
 
 function getCorsHeaders(req) {
-  const requestOrigin = req.headers.origin || '';
+  const rawRequestOrigin = String(req.headers.origin || '').trim();
+  const requestOrigin = normalizeOrigin(rawRequestOrigin);
   let allowOrigin = '*';
 
   if (ALLOWED_ORIGINS.length > 0) {
-    allowOrigin = ALLOWED_ORIGINS.includes(requestOrigin) ? requestOrigin : ALLOWED_ORIGINS[0];
+    allowOrigin = ALLOWED_ORIGINS.includes(requestOrigin) ? rawRequestOrigin : ALLOWED_ORIGINS[0];
   }
 
   return {
