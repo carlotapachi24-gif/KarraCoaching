@@ -54,6 +54,16 @@ interface ReviewItem {
 
 const TOKEN_STORAGE_KEY = 'karra_auth_token';
 
+const displayNameFromEmail = (email: string) => {
+  const localPart = String(email || '').split('@')[0]?.trim() || '';
+  if (!localPart) return 'Cliente';
+
+  return localPart
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+};
 
 const Profile = lazy(() => import('./Profile').then((module) => ({ default: module.Profile })));
 
